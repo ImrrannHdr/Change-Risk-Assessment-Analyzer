@@ -24,13 +24,14 @@ data "aws_iam_policy_document" "github_assume_role" {
     }
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
 
       values = [
-        "repo:${var.github_repository}:*"
+        "repo:ImrrannHdr@164986406/Change-Risk-Assessment-Analyzer@1414896545:pull_request"
       ]
     }
+
   }
 }
 
