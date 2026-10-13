@@ -7,9 +7,6 @@ variable "github_repository" {
   type        = string
 }
 
-variable "github_oidc_provider_arn" {
-  type = string
-}
 
 variable "plan_bucket_arn" {
   type = string
