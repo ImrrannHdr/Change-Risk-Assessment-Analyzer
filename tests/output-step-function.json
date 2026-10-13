@@ -1,0 +1,38 @@
+{
+  "risk_score": 70,
+  "risk_level": "HIGH",
+  "decision": "BLOCK",
+  "findings": [
+    {
+      "category": "IAM_WILDCARD",
+      "severity": "HIGH",
+      "risk_points": 30,
+      "resource": "aws_iam_role_policy.app",
+      "message": "IAM wildcard permission introduced.",
+      "evidence": {
+        "added_actions": [
+          "s3:*"
+        ]
+      },
+      "hard_block": false
+    },
+    {
+      "category": "INTERNET_EXPOSURE",
+      "severity": "CRITICAL",
+      "risk_points": 40,
+      "resource": "aws_security_group.app",
+      "message": "Security group introduces new Internet exposure.",
+      "evidence": {
+        "new_public_rules": [
+          [
+            22,
+            22,
+            "0.0.0.0/0"
+          ]
+        ]
+      },
+      "hard_block": true
+    }
+  ],
+  "analysis_id": "b462310e-cd1f-451d-a9f0-7233eae79110"
+}
