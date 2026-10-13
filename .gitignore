@@ -1,6 +1,5 @@
 .omni/
 .claude/
-.github/
 .cursor/
 .kiro/
 .agents/
@@ -49,7 +48,6 @@ dist/
 # Operating system
 .DS_Store
 Thumbs.db
-tests/
 .terraform/
 *.tfstate
 *.tfstate.*

@@ -35,16 +35,45 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Debug GitHub OIDC claims
-        uses: github/actions-oidc-debugger@main
-        with:
-          audience: sts.amazonaws.com
+        shell: bash
+        run: |
+          RESPONSE=$(curl -sS \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+
+          TOKEN=$(echo "$RESPONSE" | python -c "import sys,json; print(json.load(sys.stdin)['value'])")
+
+          PAYLOAD=$(echo "$TOKEN" | cut -d '.' -f2)
+
+          python - "$PAYLOAD" <<'PY'
+          import base64
+          import json
+          import sys
+
+          payload = sys.argv[1]
+          payload += "=" * (-len(payload) % 4)
+
+          claims = json.loads(
+              base64.urlsafe_b64decode(payload.encode()).decode()
+          )
+
+          print("issuer:", claims.get("iss"))
+          print("audience:", claims.get("aud"))
+          print("subject:", claims.get("sub"))
+          print("repository:", claims.get("repository"))
+          print("repository_id:", claims.get("repository_id"))
+          print("repository_owner:", claims.get("repository_owner"))
+          print("repository_owner_id:", claims.get("repository_owner_id"))
+          print("event_name:", claims.get("event_name"))
+          print("ref:", claims.get("ref"))
+          PY
 
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::384268138548:role/aws-iac-risk-engine-dev-github-actions-role   
+          role-to-assume: YOUR_GITHUB_ACTIONS_ROLE_ARN
           aws-region: ap-southeast-2
-
+          
       - name: Verify AWS identity
         run: |
           aws sts get-caller-identity
