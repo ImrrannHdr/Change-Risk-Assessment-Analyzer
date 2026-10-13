@@ -29,6 +29,7 @@ module "plan_storage" {
 
   tags = {
     Purpose = "Terraform Plan Analysis Storage"
+    Owner = "Imran"
   }
 }
 
