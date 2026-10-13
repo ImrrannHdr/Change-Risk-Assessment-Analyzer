@@ -1,0 +1,65 @@
+.omni/
+.claude/
+.github/
+.cursor/
+.kiro/
+.agents/
+terraform/environments/dev/terraform.tfvars
+.venv/
+.omni/
+.pytest_cache/
+.venv/
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfvars
+
+# Sensitive Terraform variables
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+
+# Lambda build artifacts
+build/
+dist/
+*.zip
+
+# IDE files
+.vscode/
+.idea/
+
+# Operating system
+.DS_Store
+Thumbs.db
+tests/
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.tfplan
+build/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.vscode/
+.idea/

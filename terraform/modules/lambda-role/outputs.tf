@@ -1,0 +1,13 @@
+output "role_name" {
+  description = "Lambda execution role name"
+  value       = aws_iam_role.lambda_execution.name
+}
+
+output "role_arn" {
+  description = "Lambda execution role ARN"
+  value       = aws_iam_role.lambda_execution.arn
+}
+
+
+
+# Build by Imran Haider

@@ -1,0 +1,25 @@
+version: 1
+thresholds:
+  low_max: 24
+  medium_max: 49
+  high_max: 74
+  critical_min: 75
+rules:
+  internet_exposure:
+    severity: HIGH
+    points: 35
+  public_admin_port:
+    severity: CRITICAL
+    points: 40
+    hard_block: true
+  iam_wildcard:
+    severity: HIGH
+    points: 30
+  resource_replacement:
+    severity: MEDIUM
+    points: 20
+  stateful_delete:
+    severity: CRITICAL
+    points: 50
+    hard_block: true
+# Build by Imran Haider

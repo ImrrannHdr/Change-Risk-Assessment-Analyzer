@@ -1,0 +1,37 @@
+format_version: "1.2"
+resource_changes:
+  - address: aws_security_group.app
+    type: aws_security_group
+    change:
+      actions: [update]
+      before:
+        ingress:
+          - from_port: 443
+            to_port: 443
+            protocol: tcp
+            cidr_blocks: [10.0.0.0/16]
+      after:
+        ingress:
+          - from_port: 22
+            to_port: 22
+            protocol: tcp
+            cidr_blocks: [0.0.0.0/0]
+  - address: aws_iam_role_policy.app
+    type: aws_iam_role_policy
+    change:
+      actions: [update]
+      before:
+        policy:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: [s3:GetObject]
+              Resource: "*"
+      after:
+        policy:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: ["s3:*"]
+              Resource: "*"
+# Build by Imran Haider
