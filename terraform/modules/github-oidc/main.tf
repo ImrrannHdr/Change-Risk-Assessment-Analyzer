@@ -10,8 +10,8 @@ data "aws_iam_policy_document" "github_assume_role" {
       type = "Federated"
 
       identifiers = [
-        var.github_oidc_provider_arn
-      ]
+        aws_iam_openid_connect_provider.github.arn
+     ]    
     }
 
     condition {
@@ -99,5 +99,15 @@ resource "aws_iam_role_policy_attachment" "read_only" {
   role       = aws_iam_role.github_actions.name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+}
+
+
 
 # Build by Imran Haider

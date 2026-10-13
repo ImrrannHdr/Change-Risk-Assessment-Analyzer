@@ -122,7 +122,6 @@ module "github_oidc" {
 
   github_repository = "ImrrannHdr/Change-Risk-Assessment-Analyzer"
 
-  github_oidc_provider_arn = "arn:aws:iam::384268138548:oidc-provider/token.actions.githubusercontent.com"
 
   plan_bucket_arn = module.plan_storage.bucket_arn
 
