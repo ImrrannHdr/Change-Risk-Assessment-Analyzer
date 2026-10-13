@@ -37,9 +37,7 @@ venv/
 .env.*
 
 # Lambda build artifacts
-build/
 dist/
-*.zip
 
 # IDE files
 .vscode/
@@ -53,7 +51,6 @@ Thumbs.db
 *.tfstate.*
 terraform.tfvars
 *.tfplan
-build/
 .venv/
 venv/
 __pycache__/
