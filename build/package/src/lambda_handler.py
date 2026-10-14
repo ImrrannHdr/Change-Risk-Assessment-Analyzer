@@ -23,7 +23,7 @@ def lambda_handler(event, context):
     payload = asdict(result)
     payload["analysis_id"] = analysis_id
 
-    table_name = os.environ.get("RESULTS_TABLE")
+    table_name = os.environ.get("ANALYSIS_RESULTS_TABLE")
     if table_name:
         table = dynamodb.Table(table_name)
         table.put_item(
@@ -36,7 +36,7 @@ def lambda_handler(event, context):
             }
         )
 
-    topic_arn = os.environ.get("ALERT_TOPIC_ARN")
+    topic_arn = os.environ.get("RISK_ALERT_TOPIC_ARN")
     if topic_arn and result.decision == "BLOCK":
         sns.publish(
             TopicArn=topic_arn,

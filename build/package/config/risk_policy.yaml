@@ -1,9 +1,0 @@
-risk_thresholds:
-  critical: 75
-  high: 50
-  medium: 25
-
-environment_modifiers:
-  prod: 10
-  staging: 5
-  dev: 0

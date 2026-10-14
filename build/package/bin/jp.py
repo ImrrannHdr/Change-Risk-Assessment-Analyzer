@@ -1,4 +1,4 @@
-#!/home/nccia/AWS-Projects-Own/Change-Risk-Assessment-Analyzer/.venv/bin/python
+#!/usr/bin/python3
 
 import sys
 import json
