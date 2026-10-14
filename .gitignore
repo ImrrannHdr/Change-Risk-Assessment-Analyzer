@@ -32,6 +32,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+config/
+policies/
 venv/
 .env
 .env.*
