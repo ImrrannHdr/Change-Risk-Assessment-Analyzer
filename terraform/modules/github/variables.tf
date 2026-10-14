@@ -21,4 +21,8 @@ variable "tags" {
   default = {}
 }
 
+variable "analysis_results_table_arn" {
+  type    = string
+}
+
 # Build by Imran Haider

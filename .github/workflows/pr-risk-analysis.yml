@@ -105,4 +105,106 @@ jobs:
           aws s3 cp tfplan.json \
             s3://aws-iac-risk-engine-dev-plans-output/github/${{ github.repository }}/${{ github.sha }}.json
 
+
+        
+        
+      - name: Wait for risk analysis result
+        id: risk-result
+        shell: bash
+        run: |
+          echo "Waiting for AWS risk analysis..."
+
+          for attempt in {1..30}; do
+
+            RESULT=$(aws dynamodb scan \
+              --table-name aws-iac-risk-engine-dev-analysis-results \
+              --filter-expression "commit_sha = :sha" \
+              --expression-attribute-values \
+              '{":sha":{"S":"${{ github.sha }}"}}' \
+              --query 'Items[0]' \
+              --output json)
+
+            if [ "$RESULT" != "null" ] && [ "$RESULT" != "{}" ]; then
+              echo "$RESULT" > risk-result.json
+              echo "Risk result found."
+              break
+            fi
+
+            echo "Attempt $attempt: result not available yet."
+            sleep 10
+
+          done
+
+          if [ ! -f risk-result.json ]; then
+            echo "Risk analysis result was not returned in time."
+            exit 1
+          fi
+
+
+      - name: Parse risk result
+        id: parse-risk
+        shell: bash
+        run: |
+          RISK_SCORE=$(jq -r '.risk_score.N' risk-result.json)
+          RISK_LEVEL=$(jq -r '.risk_level.S' risk-result.json)
+          DECISION=$(jq -r '.decision.S' risk-result.json)
+          ANALYSIS_ID=$(jq -r '.analysis_id.S' risk-result.json)
+
+          echo "risk_score=$RISK_SCORE" >> "$GITHUB_OUTPUT"
+          echo "risk_level=$RISK_LEVEL" >> "$GITHUB_OUTPUT"
+          echo "decision=$DECISION" >> "$GITHUB_OUTPUT"
+          echo "analysis_id=$ANALYSIS_ID" >> "$GITHUB_OUTPUT"
+
+          echo "Risk Score: $RISK_SCORE"
+          echo "Risk Level: $RISK_LEVEL"
+          echo "Decision: $DECISION"
+
+
+
+
+      - name: Comment risk result on pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RISK_SCORE: ${{ steps.parse-risk.outputs.risk_score }}
+          RISK_LEVEL: ${{ steps.parse-risk.outputs.risk_level }}
+          DECISION: ${{ steps.parse-risk.outputs.decision }}
+          ANALYSIS_ID: ${{ steps.parse-risk.outputs.analysis_id }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "## Terraform Change Risk Assessment
+
+          | Metric | Result |
+          |---|---|
+          | Risk Score | **${RISK_SCORE}** |
+          | Risk Level | **${RISK_LEVEL}** |
+          | Decision | **${DECISION}** |
+          | Analysis ID | \`${ANALYSIS_ID}\` |
+
+          AWS automated Terraform change-risk analysis completed."
+
+
+      - name: Enforce risk decision
+        env:
+          DECISION: ${{ steps.parse-risk.outputs.decision }}
+        run: |
+          case "$DECISION" in
+            ALLOW)
+              echo "Deployment decision: ALLOW"
+              ;;
+
+            APPROVAL_REQUIRED)
+              echo "Deployment requires manual approval."
+              exit 2
+              ;;
+
+            BLOCK)
+              echo "Deployment blocked by risk analysis."
+              exit 1
+              ;;
+
+            *)
+              echo "Unknown decision: $DECISION"
+              exit 1
+              ;;
+          esac
 # Build by Imran Haider

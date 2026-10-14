@@ -57,6 +57,20 @@ data "aws_iam_policy_document" "github_permissions" {
     ]
   }
 
+
+  statement {
+    sid    = "ReadRiskAnalysisResults"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:Scan"
+    ]
+
+    resources = [
+        var.analysis_results_table_arn
+    ]
+  }
+
   statement {
     sid    = "ReadTerraformState"
     effect = "Allow"

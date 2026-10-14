@@ -8,4 +8,9 @@ output "table_arn" {
   value       = aws_dynamodb_table.analysis_results.arn
 }
 
+
+
+
+
+
 # Build by Imran Haider
