@@ -116,12 +116,13 @@ module "eventbridge" {
 
 
 module "github_oidc" {
-  source = "../../modules/github-oidc"
+  source = "../../modules/github"
 
   project_name = "aws-iac-risk-engine-dev"
 
   github_repository = "ImrrannHdr/Change-Risk-Assessment-Analyzer"
 
+  analysis_results_table_arn = module.analysis_results.table_arn
 
   plan_bucket_arn = module.plan_storage.bucket_arn
 
