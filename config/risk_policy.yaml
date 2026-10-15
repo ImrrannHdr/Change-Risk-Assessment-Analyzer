@@ -1,3 +1,20 @@
+network:
+  sensitive_ports:
+    - 22       # SSH
+    - 3389     # RDP
+    - 3306     # MySQL
+    - 5432     # PostgreSQL
+
+  public_exposure:
+    high_risk_points: 35
+    critical_risk_points: 40
+
+  hard_block_sensitive_ports: true
+
+  broad_ipv4_prefix_max: 1
+  broad_ipv6_prefix_max: 1
+
+  
 risk_thresholds:
   critical: 75
   high: 50

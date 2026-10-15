@@ -7,7 +7,8 @@ def analyze_plan(plan: dict, environment: str = "dev"):
     changes = parse_tfplan(plan)
     findings = []
     findings.extend(iam.analyze(changes))
-    findings.extend(network.analyze(changes))
+    network_findings = network.analyze(changes)
+    findings.extend(network_findings)
     findings.extend(cost.analyze(changes))
     findings.extend(rollback.analyze(changes))
     return evaluate(findings, environment=environment)
