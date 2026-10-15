@@ -13,7 +13,7 @@ resource "aws_security_group" "risk_test" {
 
 
 data "aws_vpc" "selected" {
-  id = "vpc-0592b53990d8e2959"
+  id = "vpc-0c34a550ddff39e56"
 }
 
 
