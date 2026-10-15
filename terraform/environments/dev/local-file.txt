@@ -1,0 +1,101 @@
+{
+  "version": 4,
+  "terraform_version": "1.16.1",
+  "serial": 19,
+  "lineage": "3b8aee64-c3e4-108d-f747-1bb1d39ca3b5",
+  "outputs": {},
+  "resources": [
+    {
+      "module": "module.plan_storage",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "plans",
+      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "acceleration_status": "",
+            "acl": null,
+            "arn": "arn:aws:s3:::aws-iac-risk-engine-dev-plans-output",
+            "bucket": "aws-iac-risk-engine-dev-plans-output",
+            "bucket_domain_name": "aws-iac-risk-engine-dev-plans-output.s3.amazonaws.com",
+            "bucket_namespace": "global",
+            "bucket_prefix": "",
+            "bucket_region": "ap-southeast-2",
+            "bucket_regional_domain_name": "aws-iac-risk-engine-dev-plans-output.s3.ap-southeast-2.amazonaws.com",
+            "cors_rule": [],
+            "force_destroy": false,
+            "grant": [
+              {
+                "id": "5232b8977dd9f46636bd9f10ace11562e6d14836fda08a5f260bbd006422d84a",
+                "permissions": [
+                  "FULL_CONTROL"
+                ],
+                "type": "CanonicalUser",
+                "uri": ""
+              }
+            ],
+            "hosted_zone_id": "Z1WCIGYICN2BYD",
+            "id": "aws-iac-risk-engine-dev-plans-output",
+            "lifecycle_rule": [],
+            "logging": [],
+            "object_lock_configuration": [],
+            "object_lock_enabled": false,
+            "policy": "",
+            "region": "ap-southeast-2",
+            "replication_configuration": [],
+            "request_payer": "BucketOwner",
+            "server_side_encryption_configuration": [
+              {
+                "rule": [
+                  {
+                    "apply_server_side_encryption_by_default": [
+                      {
+                        "kms_master_key_id": "",
+                        "sse_algorithm": "AES256"
+                      }
+                    ],
+                    "bucket_key_enabled": false
+                  }
+                ]
+              }
+            ],
+            "tags": {
+              "Name": "aws-iac-risk-engine-dev-plans-output",
+              "Owner": "Imran",
+              "Purpose": "Terraform Plan Analysis Storage"
+            },
+            "tags_all": {
+              "Environment": "dev",
+              "ManagedBy": "Terraform",
+              "Name": "aws-iac-risk-engine-dev-plans-output",
+              "Owner": "Imran",
+              "Project": "aws-iac-risk-engine",
+              "Purpose": "Terraform Plan Analysis Storage"
+            },
+            "timeouts": null,
+            "versioning": [
+              {
+                "enabled": true,
+                "mfa_delete": false
+              }
+            ],
+            "website": [],
+            "website_domain": null,
+            "website_endpoint": null
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "identity": {
+            "account_id": "384268138548",
+            "bucket": "aws-iac-risk-engine-dev-plans-output",
+            "region": "ap-southeast-2"
+          },
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjoxMjAwMDAwMDAwMDAwLCJkZWxldGUiOjM2MDAwMDAwMDAwMDAsInJlYWQiOjEyMDAwMDAwMDAwMDAsInVwZGF0ZSI6MTIwMDAwMDAwMDAwMH19"
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
