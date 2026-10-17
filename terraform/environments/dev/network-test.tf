@@ -32,3 +32,22 @@ resource "aws_vpc_security_group_ingress_rule" "test_https" {
     Name = "risk-test-https"
   }
 }
+
+
+
+resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
+  security_group_id = "sg-0384eb54753e68e8b"
+
+  description = "Terraform Risk Analyzer blast-radius test"
+
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
+
+  cidr_ipv4 = "0.0.0.0/0"
+
+  tags = {
+    Name        = "blast-radius-test"
+    Environment = "dev"
+  }
+}

@@ -13,11 +13,13 @@ resource "aws_lambda_function" "risk_analyzer" {
   timeout     = 30
   memory_size = 256
 
+
   environment {
     variables = {
       ENVIRONMENT            = var.environment
       ANALYSIS_RESULTS_TABLE = var.analysis_results_table_name
       RISK_ALERT_TOPIC_ARN   = var.risk_alert_topic_arn
+      ENABLE_CONTEXT_ANALYSIS = "true"
     }
   }
 

@@ -37,14 +37,16 @@ policies/
 venv/
 .env
 .env.*
-
+tests/
 # Lambda build artifacts
 dist/
-
+test.py
 # IDE files
 .vscode/
 .idea/
-
+tfplan.json
+*/tfplan
+terraform/environments/dev/tfplan*
 # Operating system
 .DS_Store
 Thumbs.db

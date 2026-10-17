@@ -6,6 +6,11 @@ import yaml
 
 from src.common.models import Change, Finding
 
+from src.context.terraform_references import (
+    get_security_group_reference,
+)
+
+
 POLICY_PATH = (
     Path(__file__).resolve().parents[2]
     / "config"
@@ -176,6 +181,7 @@ def _exposes_sensitive_port(
 def analyze(
     changes: list[Change],
     policy: dict | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> list[Finding]:
     if policy is None:
         policy = load_network_policy()
@@ -234,6 +240,27 @@ def analyze(
         
         print(f"    [!] Action required: Generated {severity} security finding! (Risk Penalty: {points} pts)")
 
+        # Resolve the security group associated with
+# the Terraform ingress rule.
+        security_group = None
+
+        if plan is not None:
+            if change.resource_type in {
+                "aws_vpc_security_group_ingress_rule",
+                "aws_security_group_rule",
+        }:
+                security_group = get_security_group_reference(
+                plan,
+                change.address,
+                )
+
+        elif change.resource_type == "aws_security_group":
+        
+            security_group = {
+            "security_group_address": change.address,
+            "resolution": "terraform_reference",
+        }
+
         findings.append(
             Finding(
                 category="INTERNET_EXPOSURE",
@@ -254,7 +281,12 @@ def analyze(
                         }
                         for protocol, from_port, to_port, cidr
                         in new_public
-                    ]
+                    ],
+                    **(
+                        {"security_group": security_group}
+                        if security_group is not None
+                        else {}
+                    ),
                 },
                 hard_block=hard_block,
             )
