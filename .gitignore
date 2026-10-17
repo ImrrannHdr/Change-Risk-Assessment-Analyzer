@@ -52,6 +52,7 @@ terraform/environments/dev/tfplan*
 Thumbs.db
 .terraform/
 *.tfstate
+script-workflow.sh
 *.tfstate.*
 terraform.tfvars
 *.tfplan
