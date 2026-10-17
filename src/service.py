@@ -18,7 +18,7 @@ def analyze_plan(
 ):
     changes = parse_tfplan(plan)
     findings = []
-
+    print(f"Analyzing plan with {len(changes)} changes...")
     # IAM risk analysis
     findings.extend(iam.analyze(changes))
 
@@ -44,10 +44,11 @@ def analyze_plan(
                 )
 
                 finding.evidence["blast_radius"] = context
-
+                
             except Exception as error:
                 # Never interpret discovery failure
                 # as zero affected resources.
+                
                 finding.evidence["blast_radius"] = {
                     "status": "CONTEXT_ERROR",
                     "context_complete": False,
@@ -60,7 +61,7 @@ def analyze_plan(
                 }
 
     findings.extend(network_findings)
-
+    print(f"--> Security scan finished. Found {len(findings)} findings.")
     # Cost risk analysis
     findings.extend(cost.analyze(changes))
 
