@@ -198,12 +198,13 @@ def analyze(
         if change.resource_type not in SUPPORTED_TYPES:
             print(f"    [-] Skipping: Resource type '{change.resource_type}' is not a tracked network resource.")
             continue
-
+        
         before_rules = _normalized_rules(change, change.before)
         after_rules = _normalized_rules(change, change.after)
-
+        print(f"Before Rules: {before_rules} | After Rules: {after_rules}")
         new_rules = after_rules - before_rules
-        print(f"    [i] Found {len(new_rules)} net-new rule variations to inspect.")
+        print(f"After rules - before rules: {new_rules} | Total new rules: {len(new_rules)}")
+        print(f"[i] Found {len(new_rules)} net-new rule variations to inspect.")
 
         if not new_rules:
             continue
@@ -249,10 +250,12 @@ def analyze(
                 "aws_vpc_security_group_ingress_rule",
                 "aws_security_group_rule",
         }:
+                print(f"    [i] Attempting to resolve security group reference for rule: {change.address}")
                 security_group = get_security_group_reference(
                 plan,
                 change.address,
                 )
+                print(f"    [i] Resolved security group reference: {security_group}")
 
         elif change.resource_type == "aws_security_group":
         
@@ -260,7 +263,7 @@ def analyze(
             "security_group_address": change.address,
             "resolution": "terraform_reference",
         }
-
+        print(f"    [i] Security group is a direct resource: {security_group}")
         findings.append(
             Finding(
                 category="INTERNET_EXPOSURE",
