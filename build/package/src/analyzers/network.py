@@ -296,6 +296,9 @@ def analyze(
         )
         
     print(f"\n--> Security scan finished. Found {len(findings)} network findings.")
+    print(f"    [i] {sum(1 for f in findings if f.severity == 'CRITICAL')} critical findings, "
+          f"{sum(1 for f in findings if f.severity == 'HIGH')} high findings."
+          f"{sum(1 for f in findings if f.severity == 'MEDIUM')} medium findings.") 
     return findings
 
 # Build by Imran Haider

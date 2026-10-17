@@ -41,7 +41,7 @@ resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
 
   description = "Terraform Risk Analyzer blast-radius test"
 
-  ip_protocol = "tcp"
+  ip_protocol = "tcp" 
   from_port   = 443
   to_port     = 443
 
