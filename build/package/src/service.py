@@ -1,12 +1,12 @@
+"""Terraform plan risk orchestration with CloudWatch-friendly debug messages."""
 
-from typing import Any, Callable
+from typing import Callable
+import traceback
 
 from src.analyzers import cost, iam, network, rollback
 from src.parser import parse_tfplan
 from src.risk_engine import evaluate
-from src.context.blast_radius import (
-    analyze_security_group_impact,
-)
+from src.context.blast_radius import analyze_security_group_impact
 
 
 def analyze_plan(
@@ -16,168 +16,60 @@ def analyze_plan(
     resource_collector: Callable | None = None,
     region: str = "ap-southeast-2",
 ):
-    """
-    Main Terraform Risk Assessment orchestration function.
+    """Analyze Terraform changes; optionally enrich internet-exposure findings.
 
-    1. Parse Terraform plan changes.
-    2. Analyze IAM risks.
-    3. Analyze network risks.
-    4. Optionally investigate security group blast radius.
-    5. Analyze cost risks.
-    6. Analyze rollback risks.
-    7. Calculate final risk score and deployment decision.
+    Debug output is written to stdout (CloudWatch Logs when deployed in Lambda).
+    Context evidence adds information but does not change risk points here.
     """
 
-    print(
-        "\n========== TERRAFORM RISK ASSESSMENT STARTED ==========",
-        flush=True,
-    )
+    print("\n========== TERRAFORM RISK ASSESSMENT STARTED ==========", flush=True)
+    print(f"[RISK-ANALYZER] Environment: {environment}", flush=True)
+    print(f"[RISK-ANALYZER] AWS region: {region}", flush=True)
+    print(f"[RISK-ANALYZER] Context analysis enabled: {enable_context}", flush=True)
 
-    print(
-        f"[RISK-ANALYZER] Environment: {environment}",
-        flush=True,
-    )
-
-    print(
-        f"[RISK-ANALYZER] AWS Region: {region}",
-        flush=True,
-    )
-
-    print(
-        f"[RISK-ANALYZER] Context analysis enabled: {enable_context}",
-        flush=True,
-    )
-
-    # ---------------------------------------------------------
-    # Step 1: Parse the Terraform plan.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] STEP 1: Parsing Terraform plan...",
-        flush=True,
-    )
-
+    # Step 1: Parse the Terraform plan into Change objects.
     changes = parse_tfplan(plan)
+    print(f"[RISK-ANALYZER] Parsed changes: {len(changes)}", flush=True)
+    for change in changes:
+        print(f"[RISK-ANALYZER] Change resource: {change.address}", flush=True)
 
-    print(
-        f"[RISK-ANALYZER] Terraform plan parsed successfully. "
-        f"Total changes: {len(changes)}",
-        flush=True,
-    )
-
-    # Initialize the collection of risk findings.
     findings = []
 
-    # ---------------------------------------------------------
-    # Step 2: Perform IAM risk analysis.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] STEP 2: Starting IAM risk analysis...",
-        flush=True,
-    )
-
+    # Step 2: Evaluate IAM changes and append their findings.
     iam_findings = iam.analyze(changes)
-
     findings.extend(iam_findings)
+    print(f"[RISK-ANALYZER] IAM findings: {len(iam_findings)}", flush=True)
 
-    print(
-        f"[RISK-ANALYZER] IAM analysis completed. "
-        f"Findings: {len(iam_findings)}",
-        flush=True,
-    )
-
-    # ---------------------------------------------------------
-    # Step 3: Perform network risk analysis.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] STEP 3: Starting network risk analysis...",
-        flush=True,
-    )
-
-    # Pass both parsed changes and the complete Terraform plan.
-    # The network analyzer may use plan configuration to
-    # resolve relationships between Terraform resources.
-    network_findings = network.analyze(
-        changes,
-        plan=plan,
-    )
-
-    print(
-        f"[RISK-ANALYZER] Network analysis completed. "
-        f"Findings: {len(network_findings)}",
-        flush=True,
-    )
-
-    # Log the discovered network finding categories.
+    # Step 3: Evaluate network changes, preserving the full plan for reference resolution.
+    network_findings = network.analyze(changes, plan=plan)
+    print(f"[RISK-ANALYZER] Network findings: {len(network_findings)}", flush=True)
     for finding in network_findings:
-
         print(
-            f"[RISK-ANALYZER] Network finding detected | "
-            f"Category: {finding.category} | "
-            f"Resource: {finding.resource} | "
-            f"Severity: {finding.severity}",
+            f"[RISK-ANALYZER] Network finding: "
+            f"category={finding.category}, resource={finding.resource}, "
+            f"severity={finding.severity}, points={finding.risk_points}",
             flush=True,
         )
 
-    # ---------------------------------------------------------
-    # Step 4: Optional context-aware blast-radius analysis.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] STEP 4: Checking context analysis configuration...",
-        flush=True,
-    )
-
+    # Step 4: Investigate blast radius ONLY for INTERNET_EXPOSURE findings.
     if enable_context:
+        print("[RISK-ANALYZER] Starting context investigation", flush=True)
+        succeeded = 0
+        failed = 0
+        skipped = 0
 
-        print(
-            "[RISK-ANALYZER] Context analysis is ENABLED",
-            flush=True,
-        )
-
-        # Track investigation outcomes for debugging.
-        context_success_count = 0
-        context_error_count = 0
-        context_skipped_count = 0
-
-        # Investigate network findings individually.
         for finding in network_findings:
-
-            print(
-                f"[RISK-ANALYZER] Evaluating context eligibility | "
-                f"Resource: {finding.resource} | "
-                f"Category: {finding.category}",
-                flush=True,
-            )
-
-            # Currently, only INTERNET_EXPOSURE findings
-            # are eligible for security group impact analysis.
             if finding.category != "INTERNET_EXPOSURE":
-
-                context_skipped_count += 1
-
+                skipped += 1
                 print(
-                    f"[RISK-ANALYZER] SKIPPED: Context analysis "
-                    f"not applicable for category {finding.category}",
+                    f"[RISK-ANALYZER] Context skipped: "
+                    f"{finding.resource} ({finding.category})",
                     flush=True,
                 )
-
                 continue
 
-            # -------------------------------------------------
-            # Step 4A: Investigate security group blast radius.
-            # -------------------------------------------------
-
+            print(f"[RISK-ANALYZER] Investigating SG impact: {finding.resource}", flush=True)
             try:
-
-                print(
-                    f"[RISK-ANALYZER] Starting blast-radius "
-                    f"investigation for: {finding.resource}",
-                    flush=True,
-                )
-
                 context = analyze_security_group_impact(
                     plan=plan,
                     rule_address=finding.resource,
@@ -185,113 +77,64 @@ def analyze_plan(
                     resource_collector=resource_collector,
                 )
 
-                print(
-                    f"[RISK-ANALYZER] Blast-radius investigation "
-                    f"returned status: {context.get('status')}",
-                    flush=True,
-                )
-
-                # Enrich the original finding with blast-radius
-                # information. This will later be included in
-                # the final risk assessment result.
+                # Store context against the original network Finding object.
                 finding.evidence["blast_radius"] = context
-
-                context_success_count += 1
-
+                succeeded += 1
                 print(
-                    f"[RISK-ANALYZER] Blast-radius evidence "
-                    f"attached to finding: {finding.resource}",
+                    f"[RISK-ANALYZER] Context status: {context.get('status')} "
+                    f"| complete={context.get('context_complete')}",
+                    flush=True,
+                )
+                print(
+                    f"[RISK-ANALYZER] Resolved SG: "
+                    f"{context.get('security_group_id')} "
+                    f"({context.get('security_group_address')})",
                     flush=True,
                 )
 
-                # Display discovered Terraform dependencies.
-                planned_dependencies = context.get(
-                    "planned_dependencies"
-                )
-
-                if planned_dependencies is not None:
-
-                    print(
-                        "[RISK-ANALYZER] Planned Terraform "
-                        "dependency count: "
-                        f"{planned_dependencies.get('resource_count', 0)}",
-                        flush=True,
-                    )
-
+                # Report counts and affected Terraform resource addresses, not full plan JSON.
+                planned = context.get("planned_dependencies")
+                if planned is None:
+                    print("[RISK-ANALYZER] Planned dependencies: unknown", flush=True)
                 else:
-
                     print(
-                        "[RISK-ANALYZER] Planned Terraform "
-                        "dependencies: Not determined",
+                        f"[RISK-ANALYZER] Planned EC2 dependencies: "
+                        f"{planned.get('resource_count')}",
                         flush=True,
                     )
+                    for dependency in planned.get("affected_resources", []):
+                        print(
+                            f"[RISK-ANALYZER] Planned EC2: {dependency.get('address')}",
+                            flush=True,
+                        )
 
-                # Display discovered existing AWS dependencies.
-                existing_dependencies = context.get(
-                    "existing_dependencies"
-                )
-
-                if existing_dependencies is not None:
-
-                    print(
-                        "[RISK-ANALYZER] Existing AWS EC2 "
-                        "instance count: "
-                        f"{existing_dependencies.get('instance_count', 0)}",
-                        flush=True,
-                    )
-
-                    print(
-                        "[RISK-ANALYZER] Existing AWS network "
-                        "interface count: "
-                        f"{existing_dependencies.get('network_interface_count', 0)}",
-                        flush=True,
-                    )
-
-                    print(
-                        "[RISK-ANALYZER] Public IP detected: "
-                        f"{existing_dependencies.get('public_ip_detected', False)}",
-                        flush=True,
-                    )
-
+                # AWS discovery reports live ENI and EC2 associations if resolution succeeded.
+                existing = context.get("existing_dependencies")
+                if existing is None:
+                    print("[RISK-ANALYZER] Existing AWS dependencies: unknown", flush=True)
                 else:
-
                     print(
-                        "[RISK-ANALYZER] Existing AWS dependencies: "
-                        "Not determined",
+                        f"[RISK-ANALYZER] Existing EC2 count: {existing.get('instance_count')} "
+                        f"| ENI count: {existing.get('network_interface_count')} "
+                        f"| public IP present: {existing.get('public_ip_detected')}",
                         flush=True,
                     )
-
-            # -------------------------------------------------
-            # Step 4B: Handle context investigation failures.
-            # -------------------------------------------------
+                    print(
+                        f"[RISK-ANALYZER] Existing EC2 IDs: {existing.get('ec2_instances')}",
+                        flush=True,
+                    )
 
             except Exception as error:
-
-                context_error_count += 1
-
+                failed += 1
                 print(
-                    f"[RISK-ANALYZER] ERROR: Blast-radius "
-                    f"investigation failed for {finding.resource}",
+                    f"[RISK-ANALYZER] CONTEXT_ERROR: {finding.resource}: "
+                    f"{type(error).__name__}: {error}",
                     flush=True,
                 )
+                # Traceback stays in CloudWatch; don't put raw AWS exception into evidence.
+                traceback.print_exc()
 
-                print(
-                    f"[RISK-ANALYZER] Exception type: "
-                    f"{type(error).__name__}",
-                    flush=True,
-                )
-
-                print(
-                    f"[RISK-ANALYZER] Exception details: {error}",
-                    flush=True,
-                )
-
-                # Never interpret discovery failure as zero
-                # affected AWS resources.
-                #
-                # None indicates that the impact could not
-                # be determined, not that there were no
-                # dependencies.
+                # None signals unknown, not zero affected resources.
                 finding.evidence["blast_radius"] = {
                     "status": "CONTEXT_ERROR",
                     "context_complete": False,
@@ -303,143 +146,42 @@ def analyze_plan(
                     ),
                 }
 
-                print(
-                    "[RISK-ANALYZER] CONTEXT_ERROR evidence "
-                    "attached to the finding",
-                    flush=True,
-                )
-
-        # Summarize context investigation outcomes.
         print(
-            "[RISK-ANALYZER] Context investigation summary:",
+            f"[RISK-ANALYZER] Context summary: "
+            f"succeeded={succeeded}, failed={failed}, skipped={skipped}",
             flush=True,
         )
-
-        print(
-            f"[RISK-ANALYZER] Successful investigations: "
-            f"{context_success_count}",
-            flush=True,
-        )
-
-        print(
-            f"[RISK-ANALYZER] Failed investigations: "
-            f"{context_error_count}",
-            flush=True,
-        )
-
-        print(
-            f"[RISK-ANALYZER] Skipped findings: "
-            f"{context_skipped_count}",
-            flush=True,
-        )
-
     else:
+        print("[RISK-ANALYZER] Context analysis disabled", flush=True)
 
+    # Step 5: Include enriched network findings in the combined list.
+    findings.extend(network_findings)
+    print(f"[RISK-ANALYZER] IAM + network findings: {len(findings)}", flush=True)
+
+    # Step 6: Analyze potential cost impact.
+    cost_findings = cost.analyze(changes)
+    findings.extend(cost_findings)
+    print(f"[RISK-ANALYZER] Cost findings: {len(cost_findings)}", flush=True)
+
+    # Step 7: Analyze rollback and destructive-change risk.
+    rollback_findings = rollback.analyze(changes)
+    findings.extend(rollback_findings)
+    print(f"[RISK-ANALYZER] Rollback findings: {len(rollback_findings)}", flush=True)
+
+    # Step 8: Print a concise summary of all findings, including their risk points.
+    print(f"[RISK-ANALYZER] TOTAL FINDINGS: {len(findings)}", flush=True)
+    for index, finding in enumerate(findings, start=1):
         print(
-            "[RISK-ANALYZER] Context analysis is DISABLED. "
-            "Skipping blast-radius investigation.",
+            f"[RISK-ANALYZER] Finding {index}: "
+            f"category={finding.category} | severity={finding.severity} | "
+            f"points={finding.risk_points} | resource={finding.resource}",
             flush=True,
         )
 
-    # ---------------------------------------------------------
-    # Step 5: Add network findings to the main collection.
-    # ---------------------------------------------------------
-
-    findings.extend(network_findings)
-
-    print(
-        f"[RISK-ANALYZER] IAM and Network analysis completed. "
-        f"Combined findings: {len(findings)}",
-        flush=True,
-    )
-
-    # ---------------------------------------------------------
-    # Step 6: Perform cost risk analysis.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] STEP 5: Starting cost risk analysis...",
-        flush=True,
-    )
-
-    cost_findings = cost.analyze(changes)
-
-    findings.extend(cost_findings)
-
-    print(
-        f"[RISK-ANALYZER] Cost analysis completed. "
-        f"Findings: {len(cost_findings)}",
-        flush=True,
-    )
-
-    # ---------------------------------------------------------
-    # Step 7: Perform rollback risk analysis.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] STEP 6: Starting rollback risk analysis...",
-        flush=True,
-    )
-
-    rollback_findings = rollback.analyze(changes)
-
-    findings.extend(rollback_findings)
-
-    print(
-        f"[RISK-ANALYZER] Rollback analysis completed. "
-        f"Findings: {len(rollback_findings)}",
-        flush=True,
-    )
-
-    # ---------------------------------------------------------
-    # Step 8: Calculate overall risk score and decision.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] STEP 7: Calculating final risk score...",
-        flush=True,
-    )
-
-    print(
-        f"[RISK-ANALYZER] Total findings across all analyzers: "
-        f"{len(findings)}",
-        flush=True,
-    )
-
-    # Calculate the risk score and decision using the
-    # existing risk engine.
-    result = evaluate(
-        findings,
-        environment=environment,
-    )
-
-    # ---------------------------------------------------------
-    # Step 9: Log final risk assessment results.
-    # ---------------------------------------------------------
-
-    print(
-        "[RISK-ANALYZER] Final risk assessment:",
-        flush=True,
-    )
-
-    print(
-        f"[RISK-ANALYZER] Risk score: {result.risk_score}",
-        flush=True,
-    )
-
-    print(
-        f"[RISK-ANALYZER] Risk level: {result.risk_level}",
-        flush=True,
-    )
-
-    print(
-        f"[RISK-ANALYZER] Deployment decision: {result.decision}",
-        flush=True,
-    )
-
-    print(
-        "========== TERRAFORM RISK ASSESSMENT FINISHED ==========\n",
-        flush=True,
-    )
-
+    # Step 9: Return the original risk engine's score and decision unchanged.
+    result = evaluate(findings, environment=environment)
+    print(f"[RISK-ANALYZER] FINAL RISK SCORE: {result.risk_score}", flush=True)
+    print(f"[RISK-ANALYZER] FINAL RISK LEVEL: {result.risk_level}", flush=True)
+    print(f"[RISK-ANALYZER] FINAL DECISION: {result.decision}", flush=True)
+    print("========== TERRAFORM RISK ASSESSMENT FINISHED ==========\n", flush=True)
     return result
