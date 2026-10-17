@@ -1,5 +1,3 @@
-
-
 import ipaddress
 from pathlib import Path
 from typing import Any
@@ -8,10 +6,13 @@ import yaml
 
 from src.common.models import Change, Finding
 
+from src.context.terraform_references import (
+    get_security_group_reference,
+)
 
 
 POLICY_PATH = (
-    Path(__file__).resolve().parent.parent.parent
+    Path(__file__).resolve().parents[2]
     / "config"
     / "risk_policy.yaml"
 )
@@ -24,10 +25,7 @@ SUPPORTED_TYPES = {
 
 
 def load_network_policy() -> dict:
-    """
-    Load network configuration from the central YAML policy.
-    Fail if the configuration is missing or invalid.
-    """
+    print(f"--> Loading risk policy configuration from: {POLICY_PATH}")
     with POLICY_PATH.open("r", encoding="utf-8") as file:
         document = yaml.safe_load(file)
 
@@ -59,6 +57,7 @@ def load_network_policy() -> dict:
     ):
         raise ValueError("Invalid public_exposure configuration")
 
+    print("--> Policy configuration loaded and verified successfully.")
     return policy
 
 
@@ -72,10 +71,6 @@ def _ingress_rules(value: dict | None) -> list[dict]:
 
 
 def _cidrs(rule: dict) -> list[str]:
-    """
-    Extract IPv4 and IPv6 CIDRs from a rule.
-    Supports both inline and standalone rule resources.
-    """
     values = []
 
     for field in ("cidr_blocks", "ipv6_cidr_blocks"):
@@ -96,9 +91,6 @@ def _cidrs(rule: dict) -> list[str]:
 
 
 def _is_broad_public(cidr: str, policy: dict) -> bool:
-    """
-    Detect unrestricted or exceptionally broad CIDRs.
-    """
     try:
         network = ipaddress.ip_network(cidr, strict=False)
 
@@ -107,7 +99,10 @@ def _is_broad_public(cidr: str, policy: dict) -> bool:
         else:
             limit = policy["broad_ipv6_prefix_max"]
 
-        return network.prefixlen <= int(limit)
+        is_broad = network.prefixlen <= int(limit)
+        if is_broad:
+            print(f"    [!] Detected broad public CIDR: {cidr} (Prefix length /{network.prefixlen} <= /{limit})")
+        return is_broad
 
     except ValueError:
         return False
@@ -117,10 +112,6 @@ def _normalized_rules(
     change: Change,
     value: dict | None,
 ) -> set[tuple]:
-    """
-    Normalize all supported ingress resource formats.
-    Rule identity includes protocol, ports and CIDR.
-    """
     if not isinstance(value, dict):
         return set()
 
@@ -169,57 +160,53 @@ def _exposes_sensitive_port(
     to_port: Any,
     sensitive_ports: set[int],
 ) -> bool:
-    """
-    Check whether a rule exposes any sensitive port.
-    """
     if protocol == "-1":
+        print("    [CRITICAL] Rule specifies protocol '-1' (All protocols/ports open)!")
         return True
 
     if protocol not in {"tcp", "udp", "6", "17"}:
         return False
 
-    if not isinstance(from_port, int):
+    if not isinstance(from_port, int) or not isinstance(to_port, int):
         return False
 
-    if not isinstance(to_port, int):
-        return False
+    for port in sensitive_ports:
+        if from_port <= port <= to_port:
+            print(f"    [CRITICAL] Rule exposes sensitive port: {port} inside range {from_port}-{to_port}")
+            return True
 
-    return any(
-        from_port <= port <= to_port
-        for port in sensitive_ports
-    )
+    return False
 
 
 def analyze(
     changes: list[Change],
     policy: dict | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> list[Finding]:
-    """
-    Analyze newly introduced public security group rules.
-    """
-
     if policy is None:
         policy = load_network_policy()
 
     findings: list[Finding] = []
-
     sensitive_ports = set(policy["sensitive_ports"])
     hard_block_enabled = policy["hard_block_sensitive_ports"]
 
-    for change in changes:
+    print(f"--> Commencing network scan on {len(changes)} total change items...")
+
+    for index, change in enumerate(changes, start=1):
+        print(f"\n[{index}/{len(changes)}] Processing resource: {change.address} ({change.resource_type})")
 
         if change.resource_type not in SUPPORTED_TYPES:
+            print(f"    [-] Skipping: Resource type '{change.resource_type}' is not a tracked network resource.")
             continue
 
-        before_rules = _normalized_rules(
-            change, change.before
-        )
-
-        after_rules = _normalized_rules(
-            change, change.after
-        )
+        before_rules = _normalized_rules(change, change.before)
+        after_rules = _normalized_rules(change, change.after)
 
         new_rules = after_rules - before_rules
+        print(f"    [i] Found {len(new_rules)} net-new rule variations to inspect.")
+
+        if not new_rules:
+            continue
 
         new_public = [
             rule
@@ -228,8 +215,10 @@ def analyze(
         ]
 
         if not new_public:
+            print("    [✓] No broad public exposures introduced by this change.")
             continue
 
+        print(f"    [!] Identified {len(new_public)} broad public exposures.")
         new_public.sort(key=str)
 
         hard_block = hard_block_enabled and any(
@@ -247,11 +236,35 @@ def analyze(
             if hard_block
             else policy["public_exposure"]["high_risk_points"]
         )
+        severity = "CRITICAL" if hard_block else "HIGH"
+        
+        print(f"    [!] Action required: Generated {severity} security finding! (Risk Penalty: {points} pts)")
+
+        # Resolve the security group associated with
+# the Terraform ingress rule.
+        security_group = None
+
+        if plan is not None:
+            if change.resource_type in {
+                "aws_vpc_security_group_ingress_rule",
+                "aws_security_group_rule",
+        }:
+                security_group = get_security_group_reference(
+                plan,
+                change.address,
+                )
+
+        elif change.resource_type == "aws_security_group":
+        
+            security_group = {
+            "security_group_address": change.address,
+            "resolution": "terraform_reference",
+        }
 
         findings.append(
             Finding(
                 category="INTERNET_EXPOSURE",
-                severity="CRITICAL" if hard_block else "HIGH",
+                severity=severity,
                 risk_points=points,
                 resource=change.address,
                 message=(
@@ -268,11 +281,18 @@ def analyze(
                         }
                         for protocol, from_port, to_port, cidr
                         in new_public
-                    ]
+                    ],
+                    **(
+                        {"security_group": security_group}
+                        if security_group is not None
+                        else {}
+                    ),
                 },
                 hard_block=hard_block,
             )
         )
-
+        
+    print(f"\n--> Security scan finished. Found {len(findings)} network findings.")
     return findings
 
+# Build by Imran Haider

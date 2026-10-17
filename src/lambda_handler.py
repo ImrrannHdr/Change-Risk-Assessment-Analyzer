@@ -37,8 +37,19 @@ def lambda_handler(event, context):
     response = s3.get_object(Bucket=bucket, Key=key)
     plan = json.loads(response["Body"].read())
 
+    enable_context = (
+        os.environ.get("ENABLE_CONTEXT_ANALYSIS", "false").lower()
+        == "true"
+    )
+
+
     # Analyse Terraform plan
-    result = analyze_plan(plan, environment)
+    result = analyze_plan(
+        plan=plan,
+        environment=environment,
+        enable_context=enable_context,
+        region=os.environ.get("AWS_REGION", "ap-southeast-2"),
+    )
 
     # Convert analysis result to dictionary
     payload = asdict(result)

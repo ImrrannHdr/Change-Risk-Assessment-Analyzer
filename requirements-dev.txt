@@ -1,4 +1,7 @@
 -r requirements.txt
-pytest>=8,<9
+pytest>=9.0,<10.0
 ruff>=0.7,<1
+
 # Build by Imran Haider
+
+
