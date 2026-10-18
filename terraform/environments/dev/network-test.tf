@@ -34,7 +34,24 @@ resource "aws_vpc_security_group_ingress_rule" "test_https" {
 }
 
 
+variable "test_security_group_id" {
+  type = string
+  default = "sg-05f740035e7fc92f2"
+}
 
+resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
+  security_group_id = var.test_security_group_id
+
+  ip_protocol = "icmp"
+  from_port   = 8
+  to_port     = -1
+  cidr_ipv4   = "10.0.0.0/16"
+
+  description = "Risk analyzer plan-only test"
+}
+
+
+/*
 
 resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
   security_group_id = "sg-0384eb54753e68e8b"
@@ -52,6 +69,6 @@ resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
     Environment = "dev"
   }
 }
-
+*/
 
 
