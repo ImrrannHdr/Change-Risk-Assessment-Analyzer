@@ -38,7 +38,7 @@ variable "test_security_group_id" {
   type = string
   default = "sg-05f740035e7fc92f2"
 }
-
+/*
 resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
   security_group_id = var.test_security_group_id
 
@@ -49,7 +49,7 @@ resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
 
   description = "Risk analyzer plan-only test"
 }
-
+*/
 
 /*
 
