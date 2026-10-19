@@ -72,3 +72,14 @@ resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
 */
 
 
+resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
+  security_group_id = "sg-05f740035e7fc92f2"
+
+  ip_protocol = "tcp"
+  from_port   = 22
+  to_port     = 22
+  cidr_ipv4   = "0.0.0.0/0"
+
+  description = "Terraform risk analyzer test - plan only"
+}
+
