@@ -87,4 +87,48 @@ resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
 */
 
 
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-2023.*-x86_64"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+data "aws_subnets" "test" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.selected.id]
+  }
+}
+
+resource "aws_instance" "planned_app" {
+  ami           = data.aws_ami.amazon_linux_2023.id
+  instance_type = "t2.micro"
+
+  subnet_id = sort(data.aws_subnets.test.ids)[0]
+
+  vpc_security_group_ids = [
+    aws_security_group.risk_test.id
+  ]
+
+  tags = {
+    Name        = "risk-analyzer-planned-ec2"
+    Environment = "dev"
+    Purpose     = "PlannedDependencyTesting"
+  }
+}
+
 
