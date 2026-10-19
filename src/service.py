@@ -5,7 +5,7 @@ import traceback
 from src.analyzers import cost, iam, network, rollback
 from src.parser import parse_tfplan
 from src.risk_engine import evaluate
-from src.context.blast_radius import analyze_security_group_impact
+from src.context.impact_orchestrator import analyze_all_sg_changes
 
 
 def analyze_plan(
@@ -14,6 +14,7 @@ def analyze_plan(
     enable_context: bool = False,
     resource_collector: Callable | None = None,
     region: str = "ap-southeast-2",
+    impact_sink: list[dict] | None = None,
 ):
     """
     Main Terraform Risk Assessment function.
@@ -93,166 +94,25 @@ def analyze_plan(
         )
 
     # --------------------------------------------------
-    # STEP 4: Optional context-aware analysis
+    # STEP 4: Independent SG impact discovery.
+    # Run on ALL SG changes, not only INTERNET_EXPOSURE findings.
+    # Do NOT append impact records to scored findings.
     # --------------------------------------------------
 
-    print("\n[STEP 4] Context-aware investigation", flush=True)
-
     if enable_context:
-
-        print("[CONTEXT] Context analysis ENABLED", flush=True)
-
-        for finding in network_findings:
-
-            # Only INTERNET_EXPOSURE findings currently
-            # trigger blast-radius investigation.
-            if finding.category != "INTERNET_EXPOSURE":
-                print(
-                    f"[CONTEXT] Skipping {finding.resource} | "
-                    f"Category={finding.category}",
-                    flush=True,
-                )
-                continue
-
-            print(
-                f"[CONTEXT] Investigating blast radius for: "
-                f"{finding.resource}",
-                flush=True,
-            )
-
-            try:
-                # Resolve the security group and discover:
-                # - Planned Terraform EC2 dependencies
-                # - Existing AWS EC2 instances
-                # - Existing AWS network interfaces
-                context = analyze_security_group_impact(
-                    plan=plan,
-                    rule_address=finding.resource,
-                    region=region,
-                    resource_collector=resource_collector,
-                )
-
-                # Add the context information to the
-                # original network finding's evidence.
-                finding.evidence["blast_radius"] = context
-
-                print(
-                    f"[CONTEXT] Investigation status: "
-                    f"{context.get('status')}",
-                    flush=True,
-                )
-
-                print(
-                    f"[CONTEXT] Security group ID: "
-                    f"{context.get('security_group_id')}",
-                    flush=True,
-                )
-
-                print(
-                    f"[CONTEXT] Security group address: "
-                    f"{context.get('security_group_address')}",
-                    flush=True,
-                )
-
-                print(
-                    f"[CONTEXT] Context complete: "
-                    f"{context.get('context_complete')}",
-                    flush=True,
-                )
-
-                # --------------------------------------
-                # Planned Terraform dependencies
-                # --------------------------------------
-
-                planned = context.get("planned_dependencies")
-
-                if planned is not None:
-                    print(
-                        f"[CONTEXT] Planned dependency count: "
-                        f"{planned.get('resource_count')}",
-                        flush=True,
-                    )
-
-                    for resource in planned.get(
-                        "affected_resources", []
-                    ):
-                        print(
-                            f"[CONTEXT] Planned affected resource: "
-                            f"{resource.get('address')}",
-                            flush=True,
-                        )
-                else:
-                    print(
-                        "[CONTEXT] Planned dependencies not determined",
-                        flush=True,
-                    )
-
-                # --------------------------------------
-                # Existing AWS dependencies
-                # --------------------------------------
-
-                existing = context.get("existing_dependencies")
-
-                if existing is not None:
-                    print(
-                        f"[CONTEXT] Existing EC2 count: "
-                        f"{existing.get('instance_count')}",
-                        flush=True,
-                    )
-
-                    print(
-                        f"[CONTEXT] Existing EC2 IDs: "
-                        f"{existing.get('ec2_instances')}",
-                        flush=True,
-                    )
-
-                    print(
-                        f"[CONTEXT] Network interface count: "
-                        f"{existing.get('network_interface_count')}",
-                        flush=True,
-                    )
-
-                    print(
-                        f"[CONTEXT] Public IP detected: "
-                        f"{existing.get('public_ip_detected')}",
-                        flush=True,
-                    )
-                else:
-                    print(
-                        "[CONTEXT] Existing AWS dependencies "
-                        "not determined",
-                        flush=True,
-                    )
-
-            except Exception as error:
-
-                # Discovery failure must NOT mean
-                # that no AWS resources are affected.
-                print(
-                    f"[CONTEXT] ERROR investigating "
-                    f"{finding.resource}: {error}",
-                    flush=True,
-                )
-
-                # Print traceback to CloudWatch.
-                traceback.print_exc()
-
-                finding.evidence["blast_radius"] = {
-                    "status": "CONTEXT_ERROR",
-                    "context_complete": False,
-                    "existing_dependencies": None,
-                    "planned_dependencies": None,
-                    "message": (
-                        "Context investigation failed: "
-                        f"{type(error).__name__}"
-                    ),
-                }
-
-    else:
-        print(
-            "[CONTEXT] Context analysis DISABLED",
-            flush=True,
+        print("[IMPACT] Starting independent SG impact scan", flush=True)
+        impact_records = analyze_all_sg_changes(
+            plan=plan,
+            region=region,
+            resource_collector=resource_collector,
         )
+        print(f"[IMPACT] Completed {len(impact_records)} records", flush=True)
+        # Optional caller-owned list for Lambda handler persistence.
+        # Do not change AnalysisResult's return type / risk score.
+        if impact_sink is not None:
+            impact_sink.extend(impact_records)
+    else:
+        print("[IMPACT] Context analysis disabled", flush=True)
 
     # --------------------------------------------------
     # STEP 5: Add Network findings

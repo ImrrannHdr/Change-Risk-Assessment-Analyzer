@@ -1,3 +1,5 @@
+
+
 """Independent classification and best-effort SG impact discovery.
 
 No changes are made to risk points or deployment decisions here.
@@ -6,6 +8,7 @@ from typing import Any, Callable
 
 from src.analyzers.security_group_changes import detect_security_group_changes
 from src.context.blast_radius import analyze_security_group_impact
+from src.context.planned_sg_dependencies import find_planned_dependencies
 
 STANDALONE_RULE_TYPES = {
     "aws_security_group_rule",
@@ -60,6 +63,22 @@ def analyze_all_sg_changes(
                     "planned_dependencies": None,
                     "message": f"Context investigation failed: {type(error).__name__}",
                 }
+        # Enrich standalone SG rules with planned EC2/ENI dependencies.
+        # Preserve live AWS discovery status and existing risk scoring.
+        if resource_type in STANDALONE_RULE_TYPES:
+            impact = record["impact"]
+            try:
+                planned = find_planned_dependencies(
+                    plan,
+                    security_group_id=(impact.get("security_group_id") or change.get("security_group_id")),
+                    security_group_address=impact.get("security_group_address"),
+                )
+                impact["planned_dependencies"] = planned
+                print(f"[PLANNED-IMPACT] {address}: {planned['resource_count']} matched resources", flush=True)
+            except Exception as error:
+                print(f"[PLANNED-IMPACT] ERROR {address}: {error}", flush=True)
+                impact["planned_dependencies"] = {"status": "ERROR", "resources": [], "resource_count": 0}
+            # The new planner is intentionally partial, so no completeness upgrade.
         print(f"[IMPACT] {address}: {record['impact']['status']}", flush=True)
         results.append(record)
 
@@ -95,4 +114,3 @@ def summarize_sg_impacts(records: list[dict[str, Any]]) -> dict[str, int]:
         if record.get("impact", {}).get("context_complete") is not True:
             summary["incomplete"] += 1
     return summary
-
