@@ -81,6 +81,7 @@ def analyze(changes: list[Change]) -> list[Finding]:
                 )
             )
 
+    print(f"Found {len(findings)} IAM findings.")
     return findings
 
 # Build by Imran Haider

@@ -64,3 +64,4 @@ __pycache__/
 .vscode/
 .idea/
 .github/
+terraform/environments/dev/tfplan

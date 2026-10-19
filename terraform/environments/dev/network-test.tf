@@ -15,6 +15,16 @@ resource "aws_security_group" "risk_test" {
 data "aws_vpc" "selected" {
   id = "vpc-0c34a550ddff39e56"
 }
+resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
+  security_group_id = "sg-05f740035e7fc92f2"
+
+  ip_protocol = "tcp"
+  from_port   = 22
+  to_port     = 22
+  cidr_ipv4   = "0.0.0.0/0"
+
+  description = "Terraform risk analyzer test - plan only"
+}
 
 
 resource "aws_vpc_security_group_ingress_rule" "test_https" {
@@ -38,7 +48,7 @@ variable "test_security_group_id" {
   type = string
   default = "sg-05f740035e7fc92f2"
 }
-/*
+
 resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
   security_group_id = var.test_security_group_id
 
@@ -49,7 +59,7 @@ resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
 
   description = "Risk analyzer plan-only test"
 }
-*/
+
 
 /*
 
@@ -72,14 +82,4 @@ resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
 */
 
 
-resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
-  security_group_id = "sg-05f740035e7fc92f2"
-
-  ip_protocol = "tcp"
-  from_port   = 22
-  to_port     = 22
-  cidr_ipv4   = "0.0.0.0/0"
-
-  description = "Terraform risk analyzer test - plan only"
-}
 
