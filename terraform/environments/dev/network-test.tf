@@ -65,7 +65,6 @@ resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
   description = "Risk analyzer plan-only test"
 }
 
-
 /*
 
 resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
