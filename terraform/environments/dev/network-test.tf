@@ -15,7 +15,7 @@ resource "aws_security_group" "risk_test" {
 data "aws_vpc" "selected" {
   id = "vpc-0c34a550ddff39e56"
 }
-resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
+resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh2" {
   security_group_id = "sg-05f740035e7fc92f2"
 
   ip_protocol = "tcp"
