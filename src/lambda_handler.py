@@ -40,39 +40,49 @@ def to_dynamodb_compatible(value):
         return [to_dynamodb_compatible(item) for item in value]
     return value
 
-
 def sanitize_security_group_impacts(impacts):
-    """Store reporting fields without duplicating full Terraform before/after data."""
+    """Persist bounded SG reporting fields without full Terraform before/after plans."""
     records = []
     for change in impacts:
-        impact = change.get("impact") or {}
-        records.append({
-            "resource": change.get("resource"),
-            "resource_type": change.get("resource_type"),
-            "direction": change.get("direction"),
-            "classification": change.get("classification"),
-            "terraform_actions": change.get("terraform_actions", []),
-            "analysis_complete": change.get("analysis_complete", False),
-            "possible_impact": change.get("possible_impact"),
-            "unknown_paths": change.get("unknown_paths", []),
-            "sensitive_paths": change.get("sensitive_paths", []),
-            "lifecycle_action": change.get("lifecycle_action"),
-            "impact": {
-                "status": impact.get("status", "UNRESOLVED"),
-                "security_group_id": (
-                    impact.get("security_group_id")
-                    or change.get("security_group_id")
-                ),
-                "security_group_address": impact.get("security_group_address"),
-                "context_complete": impact.get("context_complete", False),
-                "message": impact.get("message"),
-                "existing_dependencies": impact.get("existing_dependencies"),
-                "planned_dependencies": impact.get("planned_dependencies"),
-                "lifecycle_action": impact.get("lifecycle_action"),
-                "old_security_group_id": impact.get("old_security_group_id"),
-                "new_security_group_id": impact.get("new_security_group_id"),
-            },
-        })
+        impact = change.get('impact') or {}
+        safe_impact = {
+            'status': impact.get('status', 'UNRESOLVED'),
+            'security_group_id': impact.get('security_group_id') or change.get('security_group_id'),
+            'security_group_address': impact.get('security_group_address'),
+            'context_complete': impact.get('context_complete', False),
+            'message': impact.get('message'),
+            'existing_dependencies': impact.get('existing_dependencies'),
+            'planned_dependencies': impact.get('planned_dependencies'),
+        }
+        # Preserve Stage 2A lifecycle investigation.
+        for key in ('lifecycle_action', 'old_security_group_id', 'new_security_group_id',
+                    'impact_category', 'attachment_transitions'):
+            if key in impact:
+                safe_impact[key] = impact[key]
+        item = {
+            'resource': change.get('resource'),
+            'resource_type': change.get('resource_type'),
+            'direction': change.get('direction'),
+            'classification': change.get('classification'),
+            'terraform_actions': change.get('terraform_actions', []),
+            'analysis_complete': change.get('analysis_complete', False),
+            'possible_impact': change.get('possible_impact'),
+            'unknown_paths': change.get('unknown_paths', []),
+            'sensitive_paths': change.get('sensitive_paths', []),
+            'lifecycle_action': change.get('lifecycle_action'),
+            'impact': safe_impact,
+        }
+        if 'permission_delta' in change:
+            delta = change['permission_delta']
+            item['permission_delta'] = {
+                key: delta.get(key)
+                for key in ('lifecycle_action', 'permission_effect',
+                            'added_permissions', 'removed_permissions',
+                            'permission_comparison_complete', 'message')
+            }
+        if 'rule_assessment' in change:
+            item['rule_assessment'] = change['rule_assessment']
+        records.append(item)
     return records
 
 

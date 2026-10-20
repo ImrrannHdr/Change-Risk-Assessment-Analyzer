@@ -8,6 +8,8 @@ from src.analyzers.security_group_changes import detect_security_group_changes
 from src.context.blast_radius import analyze_security_group_impact
 from src.context.planned_sg_dependencies import find_planned_dependencies
 from src.context.sg_lifecycle import analyze_sg_lifecycle
+from src.context.sg_rule_delta import analyze_sg_permission_deltas
+from src.context.sg_rule_impact import _assessment as assess_rule_impact
 
 STANDALONE_RULE_TYPES = {
     "aws_security_group_rule",
@@ -43,6 +45,7 @@ def analyze_all_sg_changes(
     Context status RESOLVED does not mean full network reachability was assessed.
     """
     changes = detect_security_group_changes(plan)
+    deltas = {record["resource"]: record for record in analyze_sg_permission_deltas(plan)}
 
     # For whole-SG create/delete/replace, suppress redundant inline records.
     lifecycle_addresses: set[str] = set()
@@ -163,6 +166,17 @@ def analyze_all_sg_changes(
                     "resources": [],
                     "resource_count": 0,
                 }
+
+        # Stage 2C: attach permission evidence to existing impact records.
+        # Reuse the discovery already performed above; do not trigger a
+        # second AWS investigation or alter the risk scoring decision.
+        delta = deltas.get(address)
+        if delta is not None:
+            record["permission_delta"] = delta
+            if resource_type in STANDALONE_RULE_TYPES:
+                record["rule_assessment"] = assess_rule_impact(delta, record["impact"])
+                record["lifecycle_action"] = delta["lifecycle_action"]
+            # Whole-SG deltas have no standalone-rule assessment.
 
         print(f"[IMPACT] {address}: {record['impact']['status']}", flush=True)
         results.append(record)
