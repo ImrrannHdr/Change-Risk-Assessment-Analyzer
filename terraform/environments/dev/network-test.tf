@@ -14,7 +14,7 @@ resource "aws_security_group" "risk_test" {
 data "aws_vpc" "selected" {
   id = "vpc-0c34a550ddff39e56"
 }
-/*
+
 
 resource "aws_vpc_security_group_ingress_rule" "test_https" {
   security_group_id = aws_security_group.risk_test.id
@@ -126,4 +126,3 @@ resource "aws_security_group" "lifecycle_test2" {
     Purpose     = "LifecycleAnalysisTesting"
   }
 }
-*/
