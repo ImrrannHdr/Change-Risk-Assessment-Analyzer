@@ -16,6 +16,10 @@ data "aws_vpc" "selected" {
 }
 
 
+
+
+
+
 resource "aws_vpc_security_group_ingress_rule" "test_https" {
   security_group_id = aws_security_group.risk_test.id
 
@@ -50,7 +54,7 @@ resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh2" {
 
 
 variable "test_security_group_id" {
-  type = string
+  type    = string
   default = "sg-05f740035e7fc92f2"
 }
 
@@ -65,26 +69,66 @@ resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh" {
   description = "Risk analyzer plan-only test"
 }
 
-/*
 
-resource "aws_vpc_security_group_ingress_rule" "blast_radius_test" {
-  security_group_id = "sg-0384eb54753e68e8b"
 
-  description = "Terraform Risk Analyzer blast-radius test"
 
-  ip_protocol = "tcp" 
-  from_port   = 443
-  to_port     = 443
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
 
-  cidr_ipv4 = "0.0.0.0/0"
+  filter {
+    name   = "name"
+    values = ["al2023-ami-2023.*-x86_64"]
+  }
 
-  tags = {
-    Name        = "blast-radius-test"
-    Environment = "dev"
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 
-*/
+data "aws_subnets" "test" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.selected.id]
+  }
+}
 
+resource "aws_instance" "planned_app" {
+  ami           = data.aws_ami.amazon_linux_2023.id
+  instance_type = "t2.micro"
+
+  subnet_id = sort(data.aws_subnets.test.ids)[0]
+
+  vpc_security_group_ids = [
+    aws_security_group.risk_test.id
+  ]
+
+  tags = {
+    Name        = "risk-analyzer-planned-ec2"
+    Environment = "dev"
+    Purpose     = "PlannedDependencyTesting"
+  }
+}
+
+
+
+resource "aws_security_group" "lifecycle_test2" {
+  name_prefix = "risk-analyzer-lifecycle-test-"
+  description = "Terraform Risk Analyzer lifecycle creation test"
+
+  vpc_id = data.aws_vpc.selected.id
+
+  tags = {
+    Name        = "risk-analyzer-lifecycle-test"
+    Environment = "dev"
+    Purpose     = "LifecycleAnalysisTesting"
+  }
+}
 
 

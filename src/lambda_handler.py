@@ -1,9 +1,11 @@
+
+
 """Terraform plan risk and independent security-group impact Lambda handler.
 
 Input: {"bucket": "...", "key": "...", "environment": "dev"}
 Detailed results are stored in DynamoDB; compact results go to Step Functions.
 Requires the updated src/service.py that accepts impact_sink.
-Updated ---"""
+"""
 
 import json
 import logging
@@ -38,36 +40,49 @@ def to_dynamodb_compatible(value):
         return [to_dynamodb_compatible(item) for item in value]
     return value
 
-
 def sanitize_security_group_impacts(impacts):
-    """Store reporting fields without duplicating full Terraform before/after data."""
+    """Persist bounded SG reporting fields without full Terraform before/after plans."""
     records = []
     for change in impacts:
-        impact = change.get("impact") or {}
-        records.append({
-            "resource": change.get("resource"),
-            "resource_type": change.get("resource_type"),
-            "direction": change.get("direction"),
-            "classification": change.get("classification"),
-            "terraform_actions": change.get("terraform_actions", []),
-            "analysis_complete": change.get("analysis_complete", False),
-            "possible_impact": change.get("possible_impact"),
-            "unknown_paths": change.get("unknown_paths", []),
-            "sensitive_paths": change.get("sensitive_paths", []),
-            "lifecycle_action": change.get("lifecycle_action"),
-            "impact": {
-                "status": impact.get("status", "UNRESOLVED"),
-                "security_group_id": (
-                    impact.get("security_group_id")
-                    or change.get("security_group_id")
-                ),
-                "security_group_address": impact.get("security_group_address"),
-                "context_complete": impact.get("context_complete", False),
-                "message": impact.get("message"),
-                "existing_dependencies": impact.get("existing_dependencies"),
-                "planned_dependencies": impact.get("planned_dependencies"),
-            },
-        })
+        impact = change.get('impact') or {}
+        safe_impact = {
+            'status': impact.get('status', 'UNRESOLVED'),
+            'security_group_id': impact.get('security_group_id') or change.get('security_group_id'),
+            'security_group_address': impact.get('security_group_address'),
+            'context_complete': impact.get('context_complete', False),
+            'message': impact.get('message'),
+            'existing_dependencies': impact.get('existing_dependencies'),
+            'planned_dependencies': impact.get('planned_dependencies'),
+        }
+        # Preserve Stage 2A lifecycle investigation.
+        for key in ('lifecycle_action', 'old_security_group_id', 'new_security_group_id',
+                    'impact_category', 'attachment_transitions'):
+            if key in impact:
+                safe_impact[key] = impact[key]
+        item = {
+            'resource': change.get('resource'),
+            'resource_type': change.get('resource_type'),
+            'direction': change.get('direction'),
+            'classification': change.get('classification'),
+            'terraform_actions': change.get('terraform_actions', []),
+            'analysis_complete': change.get('analysis_complete', False),
+            'possible_impact': change.get('possible_impact'),
+            'unknown_paths': change.get('unknown_paths', []),
+            'sensitive_paths': change.get('sensitive_paths', []),
+            'lifecycle_action': change.get('lifecycle_action'),
+            'impact': safe_impact,
+        }
+        if 'permission_delta' in change:
+            delta = change['permission_delta']
+            item['permission_delta'] = {
+                key: delta.get(key)
+                for key in ('lifecycle_action', 'permission_effect',
+                            'added_permissions', 'removed_permissions',
+                            'permission_comparison_complete', 'message')
+            }
+        if 'rule_assessment' in change:
+            item['rule_assessment'] = change['rule_assessment']
+        records.append(item)
     return records
 
 
@@ -123,16 +138,26 @@ def lambda_handler(event, context):
     summary = summarize_sg_impacts(raw_impacts)
 
     logger.info(
-        "[SG-IMPACT] total=%d resolved=%d errors=%d incomplete=%d not_assessed=%d",
-        summary["total_changes"], summary["resolved"],
-        summary["context_errors"], summary["incomplete"],
-        summary["not_assessed"],
+            "[SG-IMPACT] total=%d lifecycle=%d ingress=%d "
+            "egress=%d resolved=%d unresolved=%d "
+            "errors=%d incomplete=%d not_assessed=%d",
+            summary["total_sg_change_records"],
+            summary["whole_sg_lifecycle_changes"],
+            summary["ingress_rule_changes"],
+            summary["egress_rule_changes"],
+            summary["resolved_rule_impacts"],
+            summary["unresolved_rule_impacts"],
+            summary["context_analysis_errors"],
+            summary["incomplete_context_assessments"],
+            summary["not_assessed_changes"],
     )
     for change in impacts:
         logger.info(
             "[SG-IMPACT] resource=%s classification=%s status=%s sg=%s",
-            change["resource"], change["classification"],
-            change["impact"]["status"], change["impact"]["security_group_id"],
+            change["resource"],
+            change["classification"],
+            change["impact"]["status"],
+            change["impact"]["security_group_id"],
         )
 
     # 5. Persist the risk output and independent impact evidence to DynamoDB.
@@ -206,4 +231,6 @@ def lambda_handler(event, context):
     logger.info("[RISK-ANALYZER] Returning result to Step Functions: %s",
                 json.dumps(step_functions_result, default=str))
     return step_functions_result
+
+
 
