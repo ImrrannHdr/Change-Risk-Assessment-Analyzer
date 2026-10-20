@@ -50,7 +50,7 @@ resource "aws_vpc_security_group_ingress_rule" "risk_test_ssh2" {
 
 
 variable "test_security_group_id" {
-  type = string
+  type    = string
   default = "sg-05f740035e7fc92f2"
 }
 
@@ -113,3 +113,16 @@ resource "aws_instance" "planned_app" {
 }
 
 
+
+resource "aws_security_group" "lifecycle_test" {
+  name_prefix = "risk-analyzer-lifecycle-test-"
+  description = "Terraform Risk Analyzer lifecycle creation test"
+
+  vpc_id = data.aws_vpc.selected.id
+
+  tags = {
+    Name        = "risk-analyzer-lifecycle-test"
+    Environment = "dev"
+    Purpose     = "LifecycleAnalysisTesting"
+  }
+}

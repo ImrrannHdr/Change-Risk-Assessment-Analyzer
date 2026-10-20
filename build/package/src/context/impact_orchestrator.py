@@ -28,6 +28,48 @@ def analyze_all_sg_changes(
     remain visible as UNRESOLVED rather than pretending a complete analysis.
     """
     changes = detect_security_group_changes(plan)
+
+    # Whole-SG create/delete/replace operations should generate
+    # one lifecycle record, not duplicate ingress/egress records.
+    lifecycle_addresses = set()
+
+    for change in changes:
+        if (
+            change.get("resource_type") == "aws_security_group"
+            and change.get("classification") == "LIFECYCLE_CHANGE"
+        ):
+            address = change["resource"]
+
+            terraform_change = next(
+                (
+                    resource
+                    for resource in plan.get("resource_changes", [])
+                    if resource.get("address") == address
+                ),
+                None,
+            )
+
+            actions = (
+                (terraform_change or {}).get("change", {}).get("actions", [])
+            )
+
+            if "create" in actions or "delete" in actions:
+                lifecycle_addresses.add(address)
+
+    # Retain the lifecycle record, suppress redundant inline records.
+    changes = [
+        change
+        for change in changes
+        if not (
+            change.get("resource") in lifecycle_addresses
+            and change.get("resource_type") == "aws_security_group"
+            and change.get("classification") != "LIFECYCLE_CHANGE"
+        )
+    ]
+
+
+
+
     results: list[dict[str, Any]] = []
     print(f"[IMPACT] Independent scan: {len(changes)} SG changes", flush=True)
 
