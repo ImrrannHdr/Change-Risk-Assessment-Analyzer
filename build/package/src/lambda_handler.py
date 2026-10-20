@@ -1,9 +1,11 @@
+
+
 """Terraform plan risk and independent security-group impact Lambda handler.
 
 Input: {"bucket": "...", "key": "...", "environment": "dev"}
 Detailed results are stored in DynamoDB; compact results go to Step Functions.
 Requires the updated src/service.py that accepts impact_sink.
-Updated ---"""
+"""
 
 import json
 import logging
@@ -66,6 +68,9 @@ def sanitize_security_group_impacts(impacts):
                 "message": impact.get("message"),
                 "existing_dependencies": impact.get("existing_dependencies"),
                 "planned_dependencies": impact.get("planned_dependencies"),
+                "lifecycle_action": impact.get("lifecycle_action"),
+                "old_security_group_id": impact.get("old_security_group_id"),
+                "new_security_group_id": impact.get("new_security_group_id"),
             },
         })
     return records
@@ -206,4 +211,6 @@ def lambda_handler(event, context):
     logger.info("[RISK-ANALYZER] Returning result to Step Functions: %s",
                 json.dumps(step_functions_result, default=str))
     return step_functions_result
+
+
 

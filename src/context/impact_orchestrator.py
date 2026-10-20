@@ -1,5 +1,3 @@
-
-
 """Independent classification and best-effort SG impact discovery.
 
 No changes are made to risk points or deployment decisions here.
@@ -9,6 +7,7 @@ from typing import Any, Callable
 from src.analyzers.security_group_changes import detect_security_group_changes
 from src.context.blast_radius import analyze_security_group_impact
 from src.context.planned_sg_dependencies import find_planned_dependencies
+from src.context.sg_lifecycle import analyze_sg_lifecycle
 
 STANDALONE_RULE_TYPES = {
     "aws_security_group_rule",
@@ -38,13 +37,27 @@ def analyze_all_sg_changes(
         record = dict(change)
         print(f"[IMPACT] {address}: {change['classification']}", flush=True)
 
-        if resource_type not in STANDALONE_RULE_TYPES:
+        if resource_type == "aws_security_group":
+            try:
+                record["impact"] = analyze_sg_lifecycle(
+                    plan=plan,
+                    sg_address=address,
+                    region=region,
+                    resource_collector=resource_collector,
+                )
+            except Exception as error:
+                record["impact"] = {
+                    "status": "CONTEXT_ERROR", "context_complete": False,
+                    "existing_dependencies": None, "planned_dependencies": None,
+                    "message": f"Whole-SG analysis failed: {type(error).__name__}",
+                }
+        elif resource_type not in STANDALONE_RULE_TYPES:
             record["impact"] = {
                 "status": "NOT_ASSESSED",
                 "context_complete": False,
                 "existing_dependencies": None,
                 "planned_dependencies": None,
-                "message": "Whole-SG/inline rule investigation requires SG-level resolution",
+                "message": "Unsupported SG resource type",
             }
         else:
             try:
