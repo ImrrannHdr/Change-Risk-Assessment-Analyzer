@@ -61,6 +61,21 @@ def _references_different_explicit_sg(
         target_addresses
     )
 
+def _has_unknown(value: Any) -> bool:
+    """Check Terraform after_unknown markers recursively."""
+    if value is True:
+        return True
+
+    if value is False or value is None:
+        return False
+
+    if isinstance(value, (list, tuple)):
+        return any(_has_unknown(item) for item in value)
+
+    if isinstance(value, dict):
+        return any(_has_unknown(item) for item in value.values())
+
+    return False
 
 def find_planned_dependencies(
     plan: dict[str, Any],

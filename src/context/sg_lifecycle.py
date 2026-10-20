@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from src.context.planned_sg_dependencies import find_planned_dependencies, _has_unknown
+from src.context.planned_sg_dependencies import find_planned_dependencies,_has_unknown
+
 
 ATTACHMENT_FIELDS = {
     "aws_instance": "vpc_security_group_ids",
