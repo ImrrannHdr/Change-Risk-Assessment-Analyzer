@@ -77,6 +77,27 @@ def analyze_all_sg_changes(
         address = change["resource"]
         resource_type = change["resource_type"]
         record = dict(change)
+        
+        # Normalise the outer lifecycle action to match the
+# operation returned by sg_lifecycle.py.
+    if resource_type == "aws_security_group":
+        actions = change.get("terraform_actions", [])
+
+        if "create" in actions and "delete" in actions:
+            lifecycle_action = "REPLACE"
+        elif actions == ["create"]:
+            lifecycle_action = "CREATE"
+        elif actions == ["delete"]:
+            lifecycle_action = "DELETE"
+        elif actions == ["update"]:
+            lifecycle_action = "UPDATE"
+        else:
+            lifecycle_action = "OTHER"
+
+        if change.get("classification") == "LIFECYCLE_CHANGE":
+            record["lifecycle_action"] = lifecycle_action
+        
+        
         print(f"[IMPACT] {address}: {change['classification']}", flush=True)
 
         if resource_type == "aws_security_group":

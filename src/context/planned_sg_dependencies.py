@@ -40,6 +40,26 @@ def _sg_addresses(plan: dict[str, Any], sg_id: str | None, sg_address: str | Non
             addresses.add(resource["address"])
     return addresses
 
+def _references_different_explicit_sg(
+    refs: list[str],
+    target_addresses: set[str],
+) -> bool:
+    if not refs:
+        return False
+
+    referenced_sgs = set()
+
+    for ref in refs:
+        parts = ref.split(".")
+
+        # Variables, module outputs and dynamic references
+        # are ambiguous: keep the unknown candidate.
+        if len(parts) < 3 or parts[0] != "aws_security_group":
+            return False
+
+        referenced_sgs.add(".".join(parts[:2]))
+
+    return referenced_sgs.isdisjoint(target_addresses)
 
 def find_planned_dependencies(
     plan: dict[str, Any],
@@ -81,7 +101,12 @@ def find_planned_dependencies(
                 "match_source": "plan_values" if direct_match else "terraform_reference",
             })
         elif (change.get("after_unknown") or {}).get(field):
-            unknown_candidates.append(resource.get("address", ""))
+    # Do not flag an unrelated SG when this EC2/ENI
+    # explicitly references a different Terraform SG.
+            if not _references_different_explicit_sg(refs, addresses):
+                unknown_candidates.append(
+                    resource.get("address", "")
+                )
     return {
         "status": "PARTIAL",  # Root module and EC2/ENI only
         "resources": matched,

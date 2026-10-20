@@ -128,16 +128,26 @@ def lambda_handler(event, context):
     summary = summarize_sg_impacts(raw_impacts)
 
     logger.info(
-        "[SG-IMPACT] total=%d resolved=%d errors=%d incomplete=%d not_assessed=%d",
-        summary["total_changes"], summary["resolved"],
-        summary["context_errors"], summary["incomplete"],
-        summary["not_assessed"],
+            "[SG-IMPACT] total=%d lifecycle=%d ingress=%d "
+            "egress=%d resolved=%d unresolved=%d "
+            "errors=%d incomplete=%d not_assessed=%d",
+            summary["total_sg_change_records"],
+            summary["whole_sg_lifecycle_changes"],
+            summary["ingress_rule_changes"],
+            summary["egress_rule_changes"],
+            summary["resolved_rule_impacts"],
+            summary["unresolved_rule_impacts"],
+            summary["context_analysis_errors"],
+            summary["incomplete_context_assessments"],
+            summary["not_assessed_changes"],
     )
     for change in impacts:
         logger.info(
             "[SG-IMPACT] resource=%s classification=%s status=%s sg=%s",
-            change["resource"], change["classification"],
-            change["impact"]["status"], change["impact"]["security_group_id"],
+            change["resource"],
+            change["classification"],
+            change["impact"]["status"],
+            change["impact"]["security_group_id"],
         )
 
     # 5. Persist the risk output and independent impact evidence to DynamoDB.
