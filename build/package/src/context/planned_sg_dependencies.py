@@ -52,14 +52,15 @@ def _references_different_explicit_sg(
     for ref in refs:
         parts = ref.split(".")
 
-        # Variables, module outputs and dynamic references
-        # are ambiguous: keep the unknown candidate.
-        if len(parts) < 3 or parts[0] != "aws_security_group":
+        if len(parts) < 2 or parts[0] != "aws_security_group":
             return False
 
         referenced_sgs.add(".".join(parts[:2]))
 
-    return referenced_sgs.isdisjoint(target_addresses)
+    return bool(referenced_sgs) and referenced_sgs.isdisjoint(
+        target_addresses
+    )
+
 
 def find_planned_dependencies(
     plan: dict[str, Any],
