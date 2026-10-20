@@ -140,32 +140,61 @@ def analyze_all_sg_changes(
     return results
 
 
-def summarize_sg_impacts(records: list[dict[str, Any]]) -> dict[str, int]:
-    """Separate resolved status from completeness; do not count workloads here."""
+
+def summarize_sg_impacts(records: list[dict]) -> dict[str, int]:
+    """
+    Summarize SG changes with descriptive DynamoDB field names.
+
+    Counts change records, not unique AWS security groups.
+    """
+
     summary = {
-        "total_changes": len(records),
-        "resolved": 0,
-        "unresolved": 0,
-        "incomplete": 0,
-        "context_errors": 0,
-        "lifecycle_changes": 0,
-        "not_applicable": 0,
-        "not_assessed": 0,
+        "total_sg_change_records": len(records),
+        "whole_sg_changes": 0,
+        "whole_sg_lifecycle_changes": 0,
+        "ingress_rule_changes": 0,
+        "egress_rule_changes": 0,
+        "resolved_rule_impacts": 0,
+        "unresolved_rule_impacts": 0,
+        "context_analysis_errors": 0,
+        "incomplete_context_assessments": 0,
+        "not_assessed_changes": 0,
+        "not_applicable_changes": 0,
     }
+
     for record in records:
-        status = record.get("impact", {}).get("status", "NOT_ASSESSED")
-        if status == "RESOLVED":
-            summary["resolved"] += 1
-        if status == "UNRESOLVED":
-            summary["unresolved"] += 1
-        if status == "CONTEXT_ERROR":
-            summary["context_errors"] += 1
+        resource_type = record.get("resource_type")
+        direction = record.get("direction")
+        impact = record.get("impact") or {}
+        status = impact.get("status", "NOT_ASSESSED")
+
+        if resource_type == "aws_security_group":
+            summary["whole_sg_changes"] += 1
+
         if status == "LIFECYCLE_CHANGE":
-            summary["lifecycle_changes"] += 1
-        if status == "NOT_APPLICABLE":
-            summary["not_applicable"] += 1
+            summary["whole_sg_lifecycle_changes"] += 1
+
+        if resource_type in STANDALONE_RULE_TYPES:
+            if direction == "ingress":
+                summary["ingress_rule_changes"] += 1
+            elif direction == "egress":
+                summary["egress_rule_changes"] += 1
+
+            if status == "RESOLVED":
+                summary["resolved_rule_impacts"] += 1
+            elif status == "UNRESOLVED":
+                summary["unresolved_rule_impacts"] += 1
+
+        if status == "CONTEXT_ERROR":
+            summary["context_analysis_errors"] += 1
+
         if status == "NOT_ASSESSED":
-            summary["not_assessed"] += 1
-        if record.get("impact", {}).get("context_complete") is not True:
-            summary["incomplete"] += 1
+            summary["not_assessed_changes"] += 1
+
+        if status == "NOT_APPLICABLE":
+            summary["not_applicable_changes"] += 1
+
+        if impact.get("context_complete") is not True:
+            summary["incomplete_context_assessments"] += 1
+
     return summary
