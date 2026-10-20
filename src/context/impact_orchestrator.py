@@ -1,6 +1,6 @@
-"""Independent classification and best-effort SG impact discovery.
+"""Independent classification and best-effort security-group impact discovery.
 
-No changes are made to risk points or deployment decisions here.
+The impact analysis never changes risk scores or deployment decisions.
 """
 from typing import Any, Callable
 
@@ -16,30 +16,42 @@ STANDALONE_RULE_TYPES = {
 }
 
 
+def _lifecycle_action(actions: list[str]) -> str:
+    """Normalize Terraform whole-SG actions into reporting labels."""
+    if "create" in actions and "delete" in actions:
+        return "REPLACE"
+    if actions == ["create"]:
+        return "CREATE"
+    if actions == ["delete"]:
+        return "DELETE"
+    if actions == ["update"]:
+        return "UPDATE"
+    return "OTHER"
+
+
 def analyze_all_sg_changes(
     plan: dict[str, Any],
     region: str = "ap-southeast-2",
     resource_collector: Callable | None = None,
 ) -> list[dict[str, Any]]:
-    """Return an impact record for every SG change, even if no risk finding exists.
+    """Analyze detected SG changes independently of risk scoring.
 
-    Whole-SG and inline-rule changes are explicitly NOT_ASSESSED until
-    an SG-level resolver is implemented. Existing rule resolver limitations
-    remain visible as UNRESOLVED rather than pretending a complete analysis.
+    Whole-SG create/delete/replace operations produce one lifecycle record,
+    rather than additional duplicate inline-ingress/egress records.
+    In-place changes retain any distinct inline-rule records.
+
+    Context status RESOLVED does not mean full network reachability was assessed.
     """
     changes = detect_security_group_changes(plan)
 
-    # Whole-SG create/delete/replace operations should generate
-    # one lifecycle record, not duplicate ingress/egress records.
-    lifecycle_addresses = set()
-
+    # For whole-SG create/delete/replace, suppress redundant inline records.
+    lifecycle_addresses: set[str] = set()
     for change in changes:
         if (
             change.get("resource_type") == "aws_security_group"
             and change.get("classification") == "LIFECYCLE_CHANGE"
         ):
             address = change["resource"]
-
             terraform_change = next(
                 (
                     resource
@@ -48,15 +60,10 @@ def analyze_all_sg_changes(
                 ),
                 None,
             )
-
-            actions = (
-                (terraform_change or {}).get("change", {}).get("actions", [])
-            )
-
+            actions = (terraform_change or {}).get("change", {}).get("actions", [])
             if "create" in actions or "delete" in actions:
                 lifecycle_addresses.add(address)
 
-    # Retain the lifecycle record, suppress redundant inline records.
     changes = [
         change
         for change in changes
@@ -67,9 +74,6 @@ def analyze_all_sg_changes(
         )
     ]
 
-
-
-
     results: list[dict[str, Any]] = []
     print(f"[IMPACT] Independent scan: {len(changes)} SG changes", flush=True)
 
@@ -77,27 +81,17 @@ def analyze_all_sg_changes(
         address = change["resource"]
         resource_type = change["resource_type"]
         record = dict(change)
-        
-        # Normalise the outer lifecycle action to match the
-# operation returned by sg_lifecycle.py.
-    if resource_type == "aws_security_group":
-        actions = change.get("terraform_actions", [])
 
-        if "create" in actions and "delete" in actions:
-            lifecycle_action = "REPLACE"
-        elif actions == ["create"]:
-            lifecycle_action = "CREATE"
-        elif actions == ["delete"]:
-            lifecycle_action = "DELETE"
-        elif actions == ["update"]:
-            lifecycle_action = "UPDATE"
-        else:
-            lifecycle_action = "OTHER"
+        # This block MUST stay inside the for-loop. Only whole-SG records
+        # get normalized lifecycle actions; rule classifications are unchanged.
+        if (
+            resource_type == "aws_security_group"
+            and change.get("classification") == "LIFECYCLE_CHANGE"
+        ):
+            record["lifecycle_action"] = _lifecycle_action(
+                change.get("terraform_actions", [])
+            )
 
-        if change.get("classification") == "LIFECYCLE_CHANGE":
-            record["lifecycle_action"] = lifecycle_action
-        
-        
         print(f"[IMPACT] {address}: {change['classification']}", flush=True)
 
         if resource_type == "aws_security_group":
@@ -109,9 +103,12 @@ def analyze_all_sg_changes(
                     resource_collector=resource_collector,
                 )
             except Exception as error:
+                print(f"[IMPACT] ERROR {address}: {error}", flush=True)
                 record["impact"] = {
-                    "status": "CONTEXT_ERROR", "context_complete": False,
-                    "existing_dependencies": None, "planned_dependencies": None,
+                    "status": "CONTEXT_ERROR",
+                    "context_complete": False,
+                    "existing_dependencies": None,
+                    "planned_dependencies": None,
                     "message": f"Whole-SG analysis failed: {type(error).__name__}",
                 }
         elif resource_type not in STANDALONE_RULE_TYPES:
@@ -139,36 +136,46 @@ def analyze_all_sg_changes(
                     "planned_dependencies": None,
                     "message": f"Context investigation failed: {type(error).__name__}",
                 }
-        # Enrich standalone SG rules with planned EC2/ENI dependencies.
-        # Preserve live AWS discovery status and existing risk scoring.
+
+        # Standalone SG rules also receive planned Terraform EC2/ENI context.
+        # This deliberately does not upgrade context_complete to True.
         if resource_type in STANDALONE_RULE_TYPES:
             impact = record["impact"]
             try:
                 planned = find_planned_dependencies(
                     plan,
-                    security_group_id=(impact.get("security_group_id") or change.get("security_group_id")),
+                    security_group_id=(
+                        impact.get("security_group_id")
+                        or change.get("security_group_id")
+                    ),
                     security_group_address=impact.get("security_group_address"),
                 )
                 impact["planned_dependencies"] = planned
-                print(f"[PLANNED-IMPACT] {address}: {planned['resource_count']} matched resources", flush=True)
+                print(
+                    f"[PLANNED-IMPACT] {address}: "
+                    f"{planned['resource_count']} matched resources",
+                    flush=True,
+                )
             except Exception as error:
                 print(f"[PLANNED-IMPACT] ERROR {address}: {error}", flush=True)
-                impact["planned_dependencies"] = {"status": "ERROR", "resources": [], "resource_count": 0}
-            # The new planner is intentionally partial, so no completeness upgrade.
+                impact["planned_dependencies"] = {
+                    "status": "ERROR",
+                    "resources": [],
+                    "resource_count": 0,
+                }
+
         print(f"[IMPACT] {address}: {record['impact']['status']}", flush=True)
         results.append(record)
 
+    if changes and not results:
+        raise RuntimeError("SG impact processing produced no records")
+
+    print(f"[IMPACT] Completed {len(results)} records", flush=True)
     return results
 
 
-
 def summarize_sg_impacts(records: list[dict]) -> dict[str, int]:
-    """
-    Summarize SG changes with descriptive DynamoDB field names.
-
-    Counts change records, not unique AWS security groups.
-    """
-
+    """Summarize impact records (not unique AWS security groups)."""
     summary = {
         "total_sg_change_records": len(records),
         "whole_sg_changes": 0,
@@ -191,7 +198,6 @@ def summarize_sg_impacts(records: list[dict]) -> dict[str, int]:
 
         if resource_type == "aws_security_group":
             summary["whole_sg_changes"] += 1
-
         if status == "LIFECYCLE_CHANGE":
             summary["whole_sg_lifecycle_changes"] += 1
 
@@ -208,13 +214,10 @@ def summarize_sg_impacts(records: list[dict]) -> dict[str, int]:
 
         if status == "CONTEXT_ERROR":
             summary["context_analysis_errors"] += 1
-
         if status == "NOT_ASSESSED":
             summary["not_assessed_changes"] += 1
-
         if status == "NOT_APPLICABLE":
             summary["not_applicable_changes"] += 1
-
         if impact.get("context_complete") is not True:
             summary["incomplete_context_assessments"] += 1
 
