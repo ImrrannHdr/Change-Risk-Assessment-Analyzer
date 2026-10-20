@@ -114,7 +114,7 @@ resource "aws_instance" "planned_app" {
 
 
 
-resource "aws_security_group" "lifecycle_test" {
+resource "aws_security_group" "lifecycle_test2" {
   name_prefix = "risk-analyzer-lifecycle-test-"
   description = "Terraform Risk Analyzer lifecycle creation test"
 
