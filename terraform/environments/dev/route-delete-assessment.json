@@ -1,0 +1,107 @@
+[
+  {
+    "change": {
+      "resource": "aws_route.test[0]",
+      "resource_type": "aws_route",
+      "terraform_actions": [
+        "delete"
+      ],
+      "lifecycle_action": "DELETE",
+      "analysis_scope": "PLAN_ONLY",
+      "context_complete": false,
+      "unknown_paths": [],
+      "before": {
+        "destinations": {
+          "destination_cidr_block": "198.51.100.0/24",
+          "destination_ipv6_cidr_block": "",
+          "destination_prefix_list_id": ""
+        },
+        "targets": {
+          "transit_gateway_id": "",
+          "nat_gateway_id": "",
+          "gateway_id": "igw-0ffc2ce689707fb79",
+          "vpc_peering_connection_id": "",
+          "network_interface_id": "",
+          "instance_id": "",
+          "egress_only_gateway_id": "",
+          "local_gateway_id": "",
+          "carrier_gateway_id": "",
+          "vpc_endpoint_id": "",
+          "core_network_arn": ""
+        },
+        "route_table_id": "rtb-064c8b1cbfd75c30b"
+      },
+      "after": {
+        "destinations": {},
+        "targets": {},
+        "route_table_id": null
+      }
+    },
+    "impact": {
+      "status": "PARTIAL",
+      "resource": "aws_route.test[0]",
+      "action": "DELETE",
+      "route_table_id": "rtb-064c8b1cbfd75c30b",
+      "destination_before": "198.51.100.0/24",
+      "destination_after": null,
+      "target_before": {
+        "gateway_id": "igw-0ffc2ce689707fb79"
+      },
+      "target_after": {},
+      "dependency_discovery": {
+        "status": "RESOLVED",
+        "context_complete": false,
+        "scope": "CURRENT_AWS_STATE_SUBNET_ENI_ONLY",
+        "route_table_id": "rtb-064c8b1cbfd75c30b",
+        "vpc_id": "vpc-039af277762abcaa6",
+        "main_route_table_id": "rtb-0387f49db58bd7376",
+        "is_main_route_table": false,
+        "routes": [
+          {
+            "DestinationCidrBlock": "198.51.100.0/24",
+            "GatewayId": "igw-0ffc2ce689707fb79",
+            "Origin": "CreateRoute",
+            "State": "active"
+          },
+          {
+            "DestinationCidrBlock": "10.248.0.0/20",
+            "GatewayId": "local",
+            "Origin": "CreateRouteTable",
+            "State": "active"
+          }
+        ],
+        "affected_subnets": [
+          {
+            "subnet_id": "subnet-0fefa6edb159e5a21",
+            "cidr_block": "10.248.0.0/24",
+            "availability_zone": "ap-southeast-2c",
+            "association_type": "EXPLICIT"
+          }
+        ],
+        "affected_subnet_count": 1,
+        "explicit_subnet_count": 1,
+        "implicit_subnet_count": 0,
+        "network_interfaces": [],
+        "network_interface_count": 0,
+        "ec2_instance_ids": [],
+        "gateway_associations": [],
+        "limitations": [
+          "Current AWS snapshot only; planned association changes not applied",
+          "ENIs are potential dependencies, not evidence of actual traffic",
+          "Gateway/edge associations require separate analysis"
+        ]
+      },
+      "route_selection": {
+        "status": "INCOMPLETE",
+        "reason": "Prefix list expansion unsupported"
+      },
+      "potential_impact": "No current subnet ENIs observed",
+      "context_complete": false,
+      "limitations": [
+        "Not proof of packet flow or outage",
+        "Plan-time association moves not modelled",
+        "NACL, SG, TGW return path and propagated/prefix-list precedence not fully modelled"
+      ]
+    }
+  }
+]

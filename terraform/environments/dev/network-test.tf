@@ -56,11 +56,12 @@ resource "aws_route_table" "lab" {
   # Never add inline route blocks here.
   tags = { Name = "route-impact-lab-custom-rt" }
 }
-
+/*
 resource "aws_route_table_association" "explicit" {
   subnet_id      = aws_subnet.explicit.id
   route_table_id = aws_route_table.lab.id
 }
+*/
 
 resource "aws_route" "test" {
   count                  = var.enable_test_route ? 1 : 0
