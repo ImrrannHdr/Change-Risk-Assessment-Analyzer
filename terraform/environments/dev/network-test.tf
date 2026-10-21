@@ -1,3 +1,59 @@
+variable "enable_sg_test" {
+  description = "Enable disposable SG lifecycle test resources"
+  type        = bool
+  default     = true
+}
+
+variable "enable_sg_test_ingress" {
+  description = "Control lifecycle test ingress rule"
+  type        = bool
+  default     = true
+}
+
+variable "sg_test_name" {
+  description = "Name of disposable test security group"
+  type        = string
+  default     = "iac-risk-sg-lifecycle-test-v1"
+}
+
+variable "sg_test_vpc_id" {
+  description = "Existing non-production VPC ID"
+  type        = string
+  default = "vpc-0c34a550ddff39e56"
+}
+
+resource "aws_security_group" "lifecycle_test_stage2d" {
+  count = var.enable_sg_test ? 1 : 0
+
+  name        = var.sg_test_name
+  description = "Disposable SG for Terraform risk assessment testing"
+  vpc_id      = var.sg_test_vpc_id
+
+  tags = {
+    Purpose   = "Terraform-Risk-Testing"
+    ManagedBy = "Terraform"
+  }
+}
+/*
+resource "aws_vpc_security_group_ingress_rule" "lifecycle_test_https" {
+  count = var.enable_sg_test && var.enable_sg_test_ingress ? 1 : 0
+
+  security_group_id = aws_security_group.lifecycle_test_stage2d[0].id
+
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
+  cidr_ipv4   = "10.0.0.0/16"
+
+  description = "HTTPS rule for SG deletion assessment"
+}
+
+*/
+
+
+
+
+/*
 resource "aws_security_group" "risk_test" {
   name_prefix = "risk-analyzer-test-"
   description = "Test security group for Terraform Risk Analyzer"
@@ -131,6 +187,6 @@ resource "aws_security_group" "lifecycle_test2" {
   }
 }
 
-
+*/
 
 
