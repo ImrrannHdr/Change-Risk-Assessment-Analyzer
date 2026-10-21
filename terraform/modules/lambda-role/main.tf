@@ -67,6 +67,22 @@ data "aws_iam_policy_document" "lambda_permissions" {
     ]
   }
 
+  statement {
+    sid = "ReadRouteContext"
+    actions = [
+      "ec2:DescribeRouteTables",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeNetworkInterfaces"
+    ]
+    resources = ["*"]
+    condition {
+      test = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values = ["ap-southeast-2"]
+    }
+  }
+
+
   # Store risk analysis results in DynamoDB
   statement {
     sid    = "WriteAnalysisResults"

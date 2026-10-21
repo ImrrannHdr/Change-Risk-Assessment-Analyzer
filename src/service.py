@@ -6,6 +6,7 @@ from src.analyzers import cost, iam, network, rollback
 from src.parser import parse_tfplan
 from src.risk_engine import evaluate
 from src.context.impact_orchestrator import analyze_all_sg_changes
+from src.context.route_reporting import analyze_route_impacts
 
 
 def analyze_plan(
@@ -15,6 +16,8 @@ def analyze_plan(
     resource_collector: Callable | None = None,
     region: str = "ap-southeast-2",
     impact_sink: list[dict] | None = None,
+    enable_route_context: bool = False,
+    route_impact_sink: list[dict] | None = None,
 ):
     """
     Main Terraform Risk Assessment function.
@@ -113,6 +116,17 @@ def analyze_plan(
             impact_sink.extend(impact_records)
     else:
         print("[IMPACT] Context analysis disabled", flush=True)
+
+    # Stage 3D: Independent advisory-only route analysis.
+    # Do not add route records to scored findings or change evaluate().
+    if enable_route_context:
+        print("[ROUTE-IMPACT] Starting route context assessment", flush=True)
+        route_records = analyze_route_impacts(plan, region=region)
+        if route_impact_sink is not None:
+            route_impact_sink.extend(route_records)
+        print(f"[ROUTE-IMPACT] Completed {len(route_records)} records", flush=True)
+    else:
+        print("[ROUTE-IMPACT] Disabled", flush=True)
 
     # --------------------------------------------------
     # STEP 5: Add Network findings

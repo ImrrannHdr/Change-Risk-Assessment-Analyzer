@@ -109,8 +109,10 @@ def assess_route_change(change: dict[str, Any], *, region: str = "ap-southeast-2
         route_selection = {"status": "INCOMPLETE", "reason": "Unsupported lifecycle action"}
     elif change.get("unknown_paths"):
         route_selection = {"status": "INCOMPLETE", "reason": "Terraform has unknown planned attributes"}
-    elif any("prefix_list" in str(k) for k in (before.get("destinations") or {})) or any(
-            "prefix_list" in str(k) for k in (after.get("destinations") or {})):
+    elif any(
+        (side.get("destinations") or {}).get("destination_prefix_list_id")
+        for side in (before, after)
+    ):
         route_selection = {"status": "INCOMPLETE", "reason": "Prefix list expansion unsupported"}
     else:
         destination = old_dest or new_dest

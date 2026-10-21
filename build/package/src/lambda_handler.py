@@ -19,6 +19,7 @@ import boto3
 
 from src.service import analyze_plan
 from src.context.impact_orchestrator import summarize_sg_impacts
+from src.context.route_reporting import summarize_route_impacts, sanitize_route_impacts
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -96,6 +97,9 @@ def lambda_handler(event, context):
     enable_context = (
         os.environ.get("ENABLE_CONTEXT_ANALYSIS", "false").lower() == "true"
     )
+    enable_route_context = (
+        os.environ.get("ENABLE_ROUTE_CONTEXT_ANALYSIS", "false").lower() == "true"
+    )
     table_name = os.environ.get("ANALYSIS_RESULTS_TABLE")
     if not table_name:
         raise RuntimeError("ANALYSIS_RESULTS_TABLE environment variable is not set")
@@ -122,6 +126,7 @@ def lambda_handler(event, context):
     # 4. Use a NEW list per invocation. The updated service.py will fill it
     # independently of whether network.py generates INTERNET_EXPOSURE findings.
     raw_impacts = []
+    raw_route_impacts = []
     logger.info("[ANALYSIS] Starting plan and SG impact analysis")
     result = analyze_plan(
         plan,
@@ -129,6 +134,8 @@ def lambda_handler(event, context):
         enable_context=enable_context,
         region=region,
         impact_sink=raw_impacts,
+        enable_route_context=enable_route_context,
+        route_impact_sink=raw_route_impacts,
     )
     findings = asdict(result)["findings"]
 
@@ -136,6 +143,11 @@ def lambda_handler(event, context):
     # That would duplicate impact analysis and AWS resource discovery.
     impacts = sanitize_security_group_impacts(raw_impacts)
     summary = summarize_sg_impacts(raw_impacts)
+    route_impacts = sanitize_route_impacts(raw_route_impacts)
+    route_summary = summarize_route_impacts(raw_route_impacts)
+    logger.info("[ROUTE-IMPACT] count=%d errors=%d incomplete=%d",
+                len(route_impacts), route_summary["route_context_errors"],
+                route_summary["incomplete_route_changes"])
 
     logger.info(
             "[SG-IMPACT] total=%d lifecycle=%d ingress=%d "
@@ -172,6 +184,10 @@ def lambda_handler(event, context):
         "security_group_impact_summary": summary,
         "security_group_change_count": len(impacts),
         "security_group_impact_enabled": enable_context,
+        "route_impacts": route_impacts,
+        "route_impact_summary": route_summary,
+        "route_change_count": len(route_impacts),
+        "route_impact_enabled": enable_route_context,
         "source_key": key,
         "environment": environment,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -211,6 +227,9 @@ def lambda_handler(event, context):
         "security_group_change_count": len(impacts),
         "security_group_impact_summary": summary,
         "security_group_impact_enabled": enable_context,
+        "route_change_count": len(route_impacts),
+        "route_impact_summary": route_summary,
+        "route_impact_enabled": enable_route_context,
         "environment": environment,
         "source_key": key,
     }
