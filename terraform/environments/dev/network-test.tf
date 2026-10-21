@@ -1,3 +1,4 @@
+
 variable "enable_sg_test" {
   description = "Enable disposable SG lifecycle test resources"
   type        = bool
@@ -13,13 +14,13 @@ variable "enable_sg_test_ingress" {
 variable "sg_test_name" {
   description = "Name of disposable test security group"
   type        = string
-  default     = "iac-risk-sg-lifecycle-test-v1"
+  default     = "iac-risk-sg-lifecycle-test-v2"
 }
 
 variable "sg_test_vpc_id" {
   description = "Existing non-production VPC ID"
   type        = string
-  default = "vpc-0c34a550ddff39e56"
+  default     = "vpc-0c34a550ddff39e56"
 }
 
 resource "aws_security_group" "lifecycle_test_stage2d" {
@@ -34,7 +35,7 @@ resource "aws_security_group" "lifecycle_test_stage2d" {
     ManagedBy = "Terraform"
   }
 }
-/*
+
 resource "aws_vpc_security_group_ingress_rule" "lifecycle_test_https" {
   count = var.enable_sg_test && var.enable_sg_test_ingress ? 1 : 0
 
@@ -45,10 +46,8 @@ resource "aws_vpc_security_group_ingress_rule" "lifecycle_test_https" {
   to_port     = 443
   cidr_ipv4   = "10.0.0.0/16"
 
-  description = "HTTPS rule for SG deletion assessment"
+  description = "HTTPS rule for SG replacement assessment"
 }
-
-*/
 
 
 
