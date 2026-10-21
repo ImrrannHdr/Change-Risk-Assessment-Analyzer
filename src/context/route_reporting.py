@@ -8,6 +8,8 @@ from typing import Any, Callable
 
 from src.analyzers.route_changes import detect_route_changes
 from src.context.route_impact import assess_route_change
+from src.context.route_association_impact import assess_route_table_association
+from src.context.route_plan_conflicts import association_plan_conflicts
 
 
 def analyze_route_impacts(
@@ -19,9 +21,13 @@ def analyze_route_impacts(
     """Return a record for every detected route change, even on discovery failure."""
     run_assessment = assessor or assess_route_change
     records: list[dict[str, Any]] = []
-    for change in detect_route_changes(plan):
+    detected = detect_route_changes(plan)
+    for change in detected:
         try:
-            impact = run_assessment(change, region=region)
+            if assessor is None and change.get("resource_type") == "aws_route_table_association":
+                impact = assess_route_table_association(change, region=region)
+            else:
+                impact = run_assessment(change, region=region)
         except Exception as error:
             impact = {
                 "status": "CONTEXT_ERROR",
@@ -29,6 +35,21 @@ def analyze_route_impacts(
                 "error_type": type(error).__name__,
                 "message": "Route context discovery failed; no safety conclusion available",
             }
+        if change.get("resource_type") == "aws_route_table_association":
+            conflicts = association_plan_conflicts(change, detected)
+            if conflicts["status"] == "POTENTIAL_CONFLICT":
+                impact = dict(impact)
+                impact["route_plan_conflicts"] = conflicts
+                prior = impact.get("route_set_comparison")
+                if prior is not None:
+                    impact["route_set_comparison"] = {
+                        "status": "INCOMPLETE",
+                        "reason": "Simultaneous route changes may alter the proposed route set",
+                        "snapshot_comparison": prior,
+                        "context_complete": False,
+                    }
+                impact["context_complete"] = False
+                impact["status"] = "INCOMPLETE" if impact.get("status") not in {"CONTEXT_ERROR", "NOT_ASSESSED"} else impact.get("status")
         records.append({"change": change, "impact": impact})
     return records
 
@@ -76,6 +97,10 @@ def sanitize_route_impacts(records: list[dict[str, Any]]) -> list[dict[str, Any]
                 "target_after": impact.get("target_after", {}),
                 "route_selection": impact.get("route_selection"),
                 "potential_impact": impact.get("potential_impact"),
+                "association_transition": impact.get("association_transition"),
+                "route_set_comparison": impact.get("route_set_comparison"),
+                "route_plan_conflicts": impact.get("route_plan_conflicts"),
+                "subnet_id": impact.get("subnet_id"),
                 "reason": impact.get("reason"),
                 "error_type": impact.get("error_type"),
                 "dependency_discovery": {

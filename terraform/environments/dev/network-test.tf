@@ -13,7 +13,7 @@ variable "enable_test_route" {
 variable "test_destination_cidr" {
   description = "Documentation-only IPv4 destination for safe route update plans."
   type        = string
-  default     = "198.51.100.0/24"
+  default     = "198.51.100.0/28"
 }
 
 variable "create_test_eni" {
@@ -61,8 +61,8 @@ resource "aws_route_table_association" "explicit" {
   subnet_id      = aws_subnet.explicit.id
   route_table_id = aws_route_table.lab.id
 }
-
 */
+
 resource "aws_route" "test" {
   count                  = var.enable_test_route ? 1 : 0
   route_table_id         = aws_route_table.lab.id
