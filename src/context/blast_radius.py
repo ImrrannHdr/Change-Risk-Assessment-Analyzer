@@ -1,4 +1,4 @@
-
+import re
 from typing import Any, Callable
 
 from src.context.terraform_dependencies import (
@@ -67,6 +67,33 @@ def analyze_security_group_impact(
     sg_address = resolution.get("security_group_address")
     sg_id = resolution.get("security_group_id")
 
+    # On rule deletion/replacement, the original SG is explicitly recorded
+    # in Terraform's before state. The replacement's after SG ID may be unknown.
+    rule_change = next(
+        (
+            resource
+            for resource in plan.get("resource_changes", [])
+            if resource.get("address") == rule_address
+        ),
+        None,
+    )
+    rule_change_data = (rule_change or {}).get("change") or {}
+    rule_actions = rule_change_data.get("actions") or []
+    before = rule_change_data.get("before") or {}
+    old_sg_id = before.get("security_group_id")
+
+    if (
+        "delete" in rule_actions
+        and isinstance(old_sg_id, str)
+        and re.fullmatch(r"sg-[0-9a-f]{8}(?:[0-9a-f]{9})?", old_sg_id)
+    ):
+        sg_id = old_sg_id
+        status = "resolved"
+        print(
+            f"[BLAST-RADIUS] Using pre-change SG ID: {sg_id}",
+            flush=True,
+        )
+
     print(
         f"[BLAST-RADIUS] Resolution status: {status}",
         flush=True,
@@ -134,7 +161,7 @@ def analyze_security_group_impact(
     # Step 3: Handle newly created security groups.
     # ---------------------------------------------------------
 
-    if status == "not_yet_created":
+    if status == "not_yet_created" and not sg_id:
 
         print(
             "[BLAST-RADIUS] CASE 1: Newly created security group detected",
@@ -209,56 +236,33 @@ def analyze_security_group_impact(
         flush=True,
     )
 
+    parent_sg_lifecycle_actions = []
+
     if sg_address:
-
         for resource in plan.get("resource_changes", []):
-
             if resource.get("address") != sg_address:
                 continue
 
-            actions = resource.get(
-                "change", {}
-            ).get("actions", [])
-
+            actions = (resource.get("change") or {}).get("actions", [])
             print(
                 f"[BLAST-RADIUS] SG planned actions: {actions}",
                 flush=True,
             )
 
-            # An existing SG may be deleted or replaced.
-            # Its old AWS ID must not be treated as the new SG ID.
             if "delete" in actions:
-
+                parent_sg_lifecycle_actions = actions
                 print(
-                    "[BLAST-RADIUS] CASE 3: Security group deletion "
-                    "or replacement detected",
+                    "[BLAST-RADIUS] Parent SG deletion/replacement detected; "
+                    "continuing AWS discovery against the existing SG ID.",
                     flush=True,
                 )
+            break
 
-                print(
-                    "[BLAST-RADIUS] WARNING: Existing SG ID refers "
-                    "to the current resource, not its replacement.",
-                    flush=True,
-                )
-
-                return {
-                    "status": "LIFECYCLE_CHANGE",
-                    "security_group_id": sg_id,
-                    "security_group_address": sg_address,
-                    "actions": actions,
-                    "planned_dependencies": planned_dependencies,
-                    "existing_dependencies": None,
-                    "context_complete": False,
-                    "message": (
-                        "Security group deletion or replacement "
-                        "requires separate lifecycle analysis."
-                    ),
-                }
-
-    print(
-        "[BLAST-RADIUS] No SG deletion or replacement detected",
-        flush=True,
-    )
+    if not parent_sg_lifecycle_actions:
+        print(
+            "[BLAST-RADIUS] No parent SG deletion/replacement detected",
+            flush=True,
+        )
 
     # ---------------------------------------------------------
     # Step 6: Discover existing AWS resource associations.
@@ -426,6 +430,7 @@ def analyze_security_group_impact(
         "status": "RESOLVED",
         "security_group_id": sg_id,
         "security_group_address": sg_address,
+        "parent_sg_lifecycle_actions": parent_sg_lifecycle_actions,
         "region": region,
         "planned_dependencies": planned_dependencies,
         "existing_dependencies": existing_dependencies,
