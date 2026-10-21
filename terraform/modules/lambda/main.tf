@@ -20,6 +20,7 @@ resource "aws_lambda_function" "risk_analyzer" {
       ANALYSIS_RESULTS_TABLE = var.analysis_results_table_name
       RISK_ALERT_TOPIC_ARN   = var.risk_alert_topic_arn
       ENABLE_CONTEXT_ANALYSIS = "true"
+      ENABLE_ROUTE_CONTEXT_ANALYSIS = "true"
     }
   }
 
